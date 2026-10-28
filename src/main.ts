@@ -2,6 +2,7 @@ import './style.css';
 import { config } from './config';
 import { Journey, type Chapter } from './journey';
 import { Intro } from './scenes/intro';
+import { Mala } from './scenes/mala';
 import { share } from './ui/share';
 import { isDebug } from './lib/device';
 import { advance } from './gl/stage';
@@ -51,7 +52,10 @@ async function boot(): Promise<void> {
   });
 
   // Chapters are added below the opening in story order.
-  const chapters: Array<{ id: string; title: string; line: string; make: (el: HTMLElement) => Chapter }> = [];
+  const C = config.copy;
+  const chapters: Array<{ id: string; title: string; line: string; make: (el: HTMLElement) => Chapter }> = [
+    { id: 'mala', title: C.mala.title, line: C.mala.line, make: (el) => new Mala(el) },
+  ];
   const numbers = ['এক', 'দুই', 'তিন', 'চার'];
   const built: Record<string, Chapter> = {};
   chapters.forEach((c, i) => {
