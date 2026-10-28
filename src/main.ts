@@ -72,6 +72,26 @@ async function boot(): Promise<void> {
     void ch.init();
   });
 
+  // The last screen: greeting, Share, Watch again.
+  const end = document.createElement('footer');
+  end.className = 'end';
+  end.innerHTML = `<div><h2>${C.chhad.finale}</h2><p>${C.chhad.finaleSub}</p><div class="buttons"></div><p class="credit">বানিয়েছে <a href="https://www.instagram.com/lyadkhor.coder/" target="_blank" rel="noopener">@lyadkhor.coder</a></p></div>`;
+  const row = end.querySelector<HTMLElement>('.buttons')!;
+  const btn = (label: string, primary: boolean, onClick: () => void) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `btn${primary ? ' primary' : ''}`;
+    b.textContent = label;
+    b.addEventListener('click', onClick);
+    row.appendChild(b);
+  };
+  btn(C.ui.share, true, () => void share(intro.stage));
+  btn(C.ui.again, false, () => {
+    journey.toTop();
+    setTimeout(() => location.reload(), 1700);
+  });
+  page.appendChild(end);
+
   if (isDebug) (window as unknown as { __kali: unknown }).__kali = { intro, journey, advance, chapters: built };
   await intro.init();
 }
