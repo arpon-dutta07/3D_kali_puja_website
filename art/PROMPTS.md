@@ -89,7 +89,12 @@ up through every floor. At the very bottom: a small courtyard with a tulsi manch
 tube lights on the walls, switched off. Every room evenly and softly lit so all detail is visible (the site darkens it
 in code). No people, no ghosts.
 
-### 10. `bhoot/ghosts.png` (GREEN, landscape 3:2, 2048x1365)
+### 10. Ghosts: replaced by [GHOSTS.md](GHOSTS.md)
+
+The ghosts are now fourteen single images, one per lamp. Use [GHOSTS.md](GHOSTS.md). The old sheet prompt below is
+kept only for reference.
+
+#### (old) `bhoot/ghosts.png` (GREEN, landscape 3:2, 2048x1365)
 Six Bengali folk ghosts drawn as flat solid dark-indigo silhouettes with no inner detail except two small pale yellow
 glowing eyes each. Funny and a little mischievous, not scary. Arranged in a 3x2 grid with plenty of empty space between
 them:

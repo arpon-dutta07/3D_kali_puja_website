@@ -22,7 +22,13 @@ const ART = [
   { src: 'mala/thala', out: 'mala/thala.webp', max: 2048 },
   { src: 'mala/jaba', out: 'mala/jaba.webp', key: true, split: true, max: 512 },
   { src: 'bhoot/house', out: 'bhoot/house.webp', max: 2730 },
-  { src: 'bhoot/ghosts', out: 'bhoot/ghost.webp', key: true, split: true, max: 768 },
+  // Fourteen single ghosts (art/GHOSTS.md), one per lamp in the house, in lamp order.
+  ...Array.from({ length: 14 }, (_, i) => ({
+    src: `bhoot/ghost-${String(i + 1).padStart(2, '0')}`,
+    out: `bhoot/ghost-${i + 1}.webp`,
+    key: true,
+    max: 640,
+  })),
   { src: 'chhad/city', out: 'chhad/city.webp', trim: false, max: 2560 },
   { src: 'chhad/city-lit', out: 'chhad/city-lit.webp', trim: false, max: 2560 },
   { src: 'chhad/parapet', out: 'chhad/parapet.webp', key: true, keepGreens: true, max: 2560 },

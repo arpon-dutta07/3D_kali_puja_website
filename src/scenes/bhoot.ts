@@ -28,14 +28,25 @@ const SPOTS: Array<[number, number]> = [
   [0.47, 0.903], [0.63, 0.888], [0.2, 0.948],
 ];
 
-/** Each ghost waits near one lamp; lighting that lamp sends it away for good. */
+/**
+ * One ghost beside each lamp (same order as SPOTS and art/GHOSTS.md); lighting that lamp sends it away for good.
+ * uv is where it waits on the house picture, size its height as a fraction of the house.
+ */
 const GHOSTS: Array<{ uv: [number, number]; spot: number; size: number }> = [
-  { uv: [0.47, 0.085], spot: 1, size: 0.075 }, // arms up, by the clothesline
-  { uv: [0.33, 0.27], spot: 3, size: 0.07 }, // reading in bed
-  { uv: [0.4, 0.46], spot: 6, size: 0.07 }, // tea by the cane chair
-  { uv: [0.31, 0.63], spot: 8, size: 0.07 }, // fanning itself in the kitchen
-  { uv: [0.76, 0.6], spot: 10, size: 0.075 }, // gamchha and lantern on the stairs
-  { uv: [0.31, 0.86], spot: 13, size: 0.075 }, // with the cat under the guava tree
+  { uv: [0.08, 0.1], spot: 0, size: 0.06 }, // পেঁচাপেঁচি on the roof wall
+  { uv: [0.52, 0.09], spot: 1, size: 0.075 }, // শাঁকচুন্নি among the drying saris
+  { uv: [0.25, 0.2], spot: 2, size: 0.065 }, // পেত্নী on top of the almirah
+  { uv: [0.35, 0.29], spot: 3, size: 0.055 }, // বোবা on the bed
+  { uv: [0.6, 0.25], spot: 4, size: 0.075 }, // নিশি at the window
+  { uv: [0.32, 0.465], spot: 5, size: 0.08 }, // ব্রহ্মদৈত্য beside the thakur ghor
+  { uv: [0.61, 0.475], spot: 6, size: 0.065 }, // চোরাচুন্নি by the radio
+  { uv: [0.77, 0.42], spot: 7, size: 0.07 }, // কানাভুলো on the stairs
+  { uv: [0.29, 0.63], spot: 8, size: 0.07 }, // মেছোভূত in the kitchen
+  { uv: [0.43, 0.69], spot: 9, size: 0.055 }, // যখ under the dining table
+  { uv: [0.75, 0.62], spot: 10, size: 0.08 }, // স্কন্ধকাটা on the stairs
+  { uv: [0.36, 0.8], spot: 11, size: 0.08 }, // গেছোভূত from the guava branch
+  { uv: [0.71, 0.84], spot: 12, size: 0.09 }, // একানড়ে at the door
+  { uv: [0.11, 0.91], spot: 13, size: 0.075 }, // দেও rising from the well
 ];
 
 interface Ghost {
@@ -97,10 +108,10 @@ export class Bhoot implements Chapter {
       artOr('bhoot/house.webp', ph.house),
       artOr('common/prodip.webp', ph.prodipBowl),
     ]);
-    let ghostTex: Texture[] = await loadSeries('bhoot/ghost', 6);
+    let ghostTex: Texture[] = await loadSeries('bhoot/ghost', GHOSTS.length);
     // The drawn stand-ins are dark shapes with glowing eyes; the real ghosts are pale sheets with a faint glow.
     const ghostGlow = ghostTex.length ? 0.12 : 1.6;
-    if (!ghostTex.length) ghostTex = [0, 1, 2, 3, 4, 5].map((i) => ph.ghost(i));
+    if (!ghostTex.length) ghostTex = GHOSTS.map((_, i) => ph.ghost(i));
 
     this.W = this.H * aspectOf(houseArt.tex);
     // A faint blue night through the windows; the rest is the lamps.
