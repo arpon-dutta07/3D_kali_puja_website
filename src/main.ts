@@ -3,6 +3,7 @@ import { config } from './config';
 import { Journey, type Chapter } from './journey';
 import { Intro } from './scenes/intro';
 import { Mala } from './scenes/mala';
+import { Bhoot } from './scenes/bhoot';
 import { share } from './ui/share';
 import { isDebug } from './lib/device';
 import { advance } from './gl/stage';
@@ -55,6 +56,7 @@ async function boot(): Promise<void> {
   const C = config.copy;
   const chapters: Array<{ id: string; title: string; line: string; make: (el: HTMLElement) => Chapter }> = [
     { id: 'mala', title: C.mala.title, line: C.mala.line, make: (el) => new Mala(el) },
+    { id: 'bhoot', title: C.bhoot.title, line: C.bhoot.line, make: (el) => new Bhoot(el) },
   ];
   const numbers = ['এক', 'দুই', 'তিন', 'চার'];
   const built: Record<string, Chapter> = {};
