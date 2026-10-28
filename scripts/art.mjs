@@ -25,11 +25,11 @@ const ART = [
   { src: 'bhoot/ghosts', out: 'bhoot/ghost.webp', key: true, split: true, max: 768 },
   { src: 'chhad/city', out: 'chhad/city.webp', trim: false, max: 2560 },
   { src: 'chhad/city-lit', out: 'chhad/city-lit.webp', trim: false, max: 2560 },
-  { src: 'chhad/parapet', out: 'chhad/parapet.webp', key: true, trim: false, max: 2560 },
+  { src: 'chhad/parapet', out: 'chhad/parapet.webp', key: true, keepGreens: true, max: 2560 },
   { src: 'chhad/akash-prodip', out: 'chhad/akash-prodip.webp', key: true, max: 512 },
   { src: 'chhad/pole', out: 'chhad/pole.webp', key: true, max: 2048 },
   { src: 'chhad/candle', out: 'chhad/candle.webp', key: true, max: 320 },
-  { src: 'chhad/tubri', out: 'chhad/tubri.webp', key: true, max: 384 },
+  { src: 'chhad/tubri', out: 'chhad/tubri.webp', key: true, cropTop: 0.6, max: 384 },
 ];
 
 const EXTS = ['.png', '.jpg', '.jpeg', '.webp'];
@@ -66,6 +66,21 @@ function keyGreen(data) {
     }
   }
   return opaque ? green / opaque : 0;
+}
+
+/** Alpha from the distance to the background colour (sampled at the corners), so greens unlike it survive. */
+function keyByDistance(data, w, h) {
+  const corner = (x, y) => [data[(y * w + x) * 4], data[(y * w + x) * 4 + 1], data[(y * w + x) * 4 + 2]];
+  const cs = [corner(2, 2), corner(w - 3, 2), corner(2, h - 3), corner(w - 3, h - 3)];
+  const bg = [0, 1, 2].map((k) => cs.map((c) => c[k]).sort((a, b) => a - b)[1]);
+  for (let i = 0; i < data.length; i += 4) {
+    const d = Math.hypot(data[i] - bg[0], data[i + 1] - bg[1], data[i + 2] - bg[2]);
+    const a = smoothstep(38, 95, d);
+    const maxRB = Math.max(data[i], data[i + 2]);
+    // Despill only the soft edge, where the green background shows through.
+    if (a < 1) data[i + 1] = Math.round(data[i + 1] * a + Math.min(data[i + 1], maxRB + 6) * (1 - a));
+    data[i + 3] = Math.round(a * data[i + 3]);
+  }
 }
 
 /** Bounding boxes of separate sprites on a keyed sheet (coarse flood fill on a downsampled alpha grid). */
@@ -135,9 +150,18 @@ async function run(entry) {
     console.log(`  -> ${path.relative(ROOT, outPath)} ${meta.width}x${meta.height} ${(fs.statSync(outPath).size / 1024).toFixed(0)} KB`);
     return true;
   }
-  const { data, info } = await sharp(file).rotate().ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const leftover = keyGreen(data);
-  if (leftover > 0.02) console.warn(`  ! ${(leftover * 100).toFixed(1)}% of the subject is still green. Check the background colour.`);
+  let img = sharp(file).rotate();
+  if (entry.cropTop) {
+    const m = await sharp(file).rotate().metadata();
+    const top = Math.round(m.height * entry.cropTop);
+    img = sharp(await img.extract({ left: 0, top, width: m.width, height: m.height - top }).png().toBuffer());
+  }
+  const { data, info } = await img.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  if (entry.keepGreens) keyByDistance(data, info.width, info.height);
+  else {
+    const leftover = keyGreen(data);
+    if (leftover > 0.02) console.warn(`  ! ${(leftover * 100).toFixed(1)}% of the subject is still green. Check the background colour.`);
+  }
   if (!entry.split) {
     await write(data, info.width, info.height, outPath, entry);
     return true;
