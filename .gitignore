@@ -1,0 +1,8 @@
+node_modules
+dist
+.vercel
+*.local
+.DS_Store
+# Raw generated art is big; only the processed WebPs in public/assets are committed.
+art/raw/
+screenshots/
