@@ -1,0 +1,581 @@
+import { gsap } from 'gsap';
+import {
+  BoxGeometry,
+  Color,
+  Mesh,
+  PlaneGeometry,
+  Plane,
+  Raycaster,
+  RepeatWrapping,
+  Sprite,
+  SpriteMaterial,
+  Vector2,
+  Vector3,
+  type ShaderMaterial,
+  type Texture,
+} from 'three';
+import { config } from '../config';
+import { CameraRig, fitShot, type Shot } from '../gl/camera';
+import { Glows } from '../gl/glows';
+import { LampField } from '../gl/lamps';
+import { litMaterial, lu } from '../gl/lit';
+import * as ph from '../gl/placeholders';
+import { Sparks } from '../gl/sparks';
+import { Stage } from '../gl/stage';
+import { artOr, aspectOf, loadSeries } from '../lib/assets';
+import { bn, buzz, damp, isTouch } from '../lib/device';
+import { parallax } from '../lib/parallax';
+import { cornerButton, counter, Overlay } from '../ui/overlay';
+
+type State = 'loading' | 'gate' | 'dark' | 'lighting' | 'finishing' | 'midnight' | 'blessing';
+
+interface Layout {
+  rows: number;
+  perRow: number;
+  width: number;
+  rise: number;
+  tread: number;
+  top: number;
+  maZ: number;
+  maH: number;
+  maW: number;
+  maBase: number;
+}
+
+/**
+ * Opening: অমাবস্যার ১০৮ প্রদীপ. Light one prodip, carry its flame across 108 lamps on the temple steps; the light
+ * climbs Ma from her feet to her face, and at midnight she is fully seen.
+ */
+export class Intro {
+  readonly stage: Stage;
+  readonly overlay: Overlay;
+  state: State = 'loading';
+  private rig: CameraRig;
+  private lay!: Layout;
+  private lamps!: LampField;
+  private first!: LampField;
+  private carry!: LampField;
+  private ma!: Mesh;
+  private maMat!: ShaderMaterial;
+  private backMat!: ShaderMaterial;
+  private stepMat!: ShaderMaterial;
+  private halo!: Glows;
+  private embers!: Sparks;
+  private petalTex: Texture[] = [];
+  private petals: Array<{ s: Sprite; vy: number; ph: number; spin: number; x0: number }> = [];
+  private shots: Record<'gate' | 'steps' | 'ma' | 'blessing', Shot> = {} as never;
+  private screenPos: Array<{ x: number; y: number }> = [];
+  private pointer = { x: 0, y: 0, px: 0, py: 0, down: false, inside: false, moved: false };
+  private carrying = false;
+  private carryAmp = 0;
+  private rise = 0;
+  private riseTarget = 0;
+  private haloAmp = 0;
+  private idle = 0;
+  private assist: gsap.core.Tween | null = null;
+  private ghost: { x: number; y: number } | null = null;
+  private counterEl: HTMLElement;
+  private skipBtn: HTMLButtonElement;
+  private raycaster = new Raycaster();
+  private stepsPlane = new Plane();
+  private onBlessing: () => void;
+  private blessed = false;
+  private keyHeld = false;
+
+  constructor(section: HTMLElement, onBlessing: () => void) {
+    this.onBlessing = onBlessing;
+    const canvas = section.querySelector('canvas')!;
+    this.stage = new Stage(canvas, { fov: 42 });
+    this.overlay = new Overlay(section);
+    this.rig = new CameraRig(this.stage);
+    this.counterEl = counter(this.overlay.root);
+    this.skipBtn = cornerButton(this.overlay.root, config.copy.ui.skip, () => this.skip());
+    this.skipBtn.hidden = true;
+  }
+
+  async init(): Promise<void> {
+    const portrait = this.stage.aspect < 1;
+    const c = config.intro;
+    const rows = portrait ? c.rowsPortrait : c.rowsLandscape;
+    const [maArt, backArt, stoneArt, bowlArt] = await Promise.all([
+      artOr('intro/ma.webp', () => ph.maStandIn()),
+      artOr('intro/shrine.webp', ph.shrine),
+      artOr('intro/stone.webp', ph.stone),
+      artOr('common/prodip.webp', ph.prodipBowl),
+    ]);
+    this.petalTex = await loadSeries('common/petal', 4);
+
+    const maH = c.maHeight * (portrait ? 0.82 : 1);
+    const tread = portrait ? c.tread * 0.82 : c.tread;
+    const top = rows * c.rise;
+    this.lay = {
+      rows,
+      perRow: c.count / rows,
+      width: portrait ? c.widthPortrait : c.widthLandscape,
+      rise: c.rise,
+      tread,
+      top,
+      maZ: -rows * tread - 1.0,
+      maH,
+      maW: maH * aspectOf(maArt.tex),
+      maBase: top + 0.22,
+    };
+    const L = this.lay;
+    const S = this.stage;
+
+    // Shrine wall far behind.
+    const backAspect = aspectOf(backArt.tex);
+    const backW = 30;
+    this.backMat = litMaterial(S, backArt.tex, { ambient: 0.018, gain: 0.35, transparent: false });
+    lu(this.backMat).uRiseColor.value.set('#7a3a1c');
+    const back = new Mesh(new PlaneGeometry(backW, backW / backAspect), this.backMat);
+    back.position.set(0, L.top + backW / backAspect / 2 - 2.5, L.maZ - 2.2);
+    S.scene.add(back);
+
+    // Steps and the ground in front, in stone.
+    if (stoneArt.real) stoneArt.tex.wrapS = stoneArt.tex.wrapT = RepeatWrapping;
+    this.stepMat = litMaterial(S, stoneArt.tex, { ambient: 0.012, gain: 1.05, transparent: false, repeat: [L.width / 1.6, 0.6] });
+    for (let k = 0; k < rows; k++) {
+      const h = (k + 1) * L.rise;
+      const step = new Mesh(new BoxGeometry(L.width, h, L.tread), this.stepMat);
+      step.position.set(0, h / 2, -(k + 0.5) * L.tread);
+      S.scene.add(step);
+    }
+    const altar = new Mesh(new BoxGeometry(L.width * 0.72, 0.22, 1.9), this.stepMat);
+    altar.position.set(0, L.top + 0.11, L.maZ + 0.1);
+    S.scene.add(altar);
+    const groundMat = litMaterial(S, stoneArt.tex, { ambient: 0.012, gain: 1.05, transparent: false, repeat: [40, 7] });
+    const ground = new Mesh(new PlaneGeometry(80, 14), groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.set(0, 0, 4);
+    S.scene.add(ground);
+
+    // A deep red and gold glow behind Ma, for midnight.
+    this.halo = new Glows(1, S.scene, 2.6);
+    this.halo.color(0, new Color('#b8202c').lerp(new Color(config.palette.gold), 0.25));
+    this.halo.set(0, 0, L.maBase + L.maH * 0.62, L.maZ - 0.4, L.maH * 1.5, 0);
+    this.halo.commit();
+    this.halo.mesh.renderOrder = 5;
+
+    this.maMat = litMaterial(S, maArt.tex, { ambient: 0.022, gain: 0.7 });
+    this.ma = new Mesh(new PlaneGeometry(L.maW, L.maH), this.maMat);
+    this.ma.position.set(0, L.maBase + L.maH / 2, L.maZ);
+    this.ma.renderOrder = 10;
+    S.scene.add(this.ma);
+
+    // 108 lamps on the front edge of the steps.
+    const bowlAspect = aspectOf(bowlArt.tex);
+    const size = c.lampScale * (portrait ? 0.78 : 1);
+    const pts: Vector3[] = [];
+    for (let k = 0; k < rows; k++) {
+      for (let j = 0; j < L.perRow; j++) {
+        const x = (j / (L.perRow - 1) - 0.5) * L.width * 0.9 + (k % 2 ? 0.5 : -0.5) * (L.width * 0.9) / (L.perRow - 1) * 0.3;
+        pts.push(new Vector3(x, (k + 1) * L.rise + (size / bowlAspect) * 0.42, -k * L.tread - 0.2));
+      }
+    }
+    const lampOpts = { bowl: bowlArt.tex, bowlAspect, flameLift: 0.16, flameSize: 1.15, light: 5.5, lightAmp: 0.32, halo: 1.5, haloAmp: 0.16, ambient: 0.025 };
+    this.lamps = new LampField(S, pts, size, lampOpts);
+    this.lamps.onIgnite = () => this.onLampLit();
+    this.first = new LampField(S, [new Vector3(0, (size * 1.6) / bowlAspect * 0.42, 1.25)], size * 1.6, {
+      ...lampOpts,
+      light: 7,
+      lightAmp: 0.5,
+    });
+    this.carry = new LampField(S, [new Vector3()], size * 1.1, { bowl: null, light: 6, lightAmp: 0.5, halo: 1.8, haloAmp: 0.22 });
+    this.carry.setAll(true, true);
+    this.carry.master = 0;
+
+    // The plane the carried flame slides on: through the front and back lamp rows.
+    const a = new Vector3(0, pts[0]!.y + 0.08, pts[0]!.z);
+    const b = new Vector3(0, pts[pts.length - 1]!.y + 0.08, pts[pts.length - 1]!.z);
+    const along = b.clone().sub(a).normalize();
+    const normal = new Vector3(1, 0, 0).cross(along).normalize();
+    this.stepsPlane.setFromNormalAndCoplanarPoint(normal, a);
+
+    this.embers = new Sparks(S, 500);
+    this.embers.gravity = 0.45;
+    this.embers.drag = 0.5;
+    this.embers.wander = 0.8;
+
+    S.onResize(() => this.computeShots());
+    S.onFrame((dt) => this.update(dt));
+    this.bindInput();
+    this.rig.snap(this.shots.gate);
+    this.enterGate();
+  }
+
+  private computeShots(): void {
+    if (!this.lay) return;
+    const L = this.lay;
+    const S = this.stage;
+    const f = this.first?.pos[0] ?? new Vector3(0, 0.2, 1.25);
+    this.shots.gate = { pos: f.clone().add(new Vector3(0, 0.5, 2.0)), target: f.clone().add(new Vector3(0, 0.36, 0)) };
+    const frontY = L.rise;
+    const maTop = L.maBase + L.maH;
+    const halfW = L.width / 2;
+    const all = [
+      new Vector3(-halfW, frontY, 0.2),
+      new Vector3(halfW, frontY, 0.2),
+      new Vector3(0, frontY - 0.1, 1.2),
+      new Vector3(-L.maW / 2, maTop, L.maZ),
+      new Vector3(L.maW / 2, maTop, L.maZ),
+    ];
+    const mid = new Vector3(0, (frontY + maTop) / 2, (0.6 + L.maZ) / 2);
+    this.shots.steps = fitShot(S, all, mid, new Vector3(0, 0.38, 1), { x: 0.94, y: 0.8 });
+    const maPts = [
+      new Vector3(-L.maW / 2, L.maBase + L.maH * 0.35, L.maZ),
+      new Vector3(L.maW / 2, L.maBase + L.maH * 0.35, L.maZ),
+      new Vector3(0, maTop + 0.1, L.maZ),
+    ];
+    this.shots.ma = fitShot(S, maPts, new Vector3(0, L.maBase + L.maH * 0.66, L.maZ), new Vector3(0, 0.08, 1), { x: 0.92, y: 0.8 });
+    const blessPts = [
+      new Vector3(-L.maW / 2, L.maBase, L.maZ),
+      new Vector3(L.maW / 2, L.maBase, L.maZ),
+      new Vector3(0, maTop, L.maZ),
+      new Vector3(-halfW * 0.8, L.top - L.rise * 2, -(L.rows - 3) * L.tread),
+      new Vector3(halfW * 0.8, L.top - L.rise * 2, -(L.rows - 3) * L.tread),
+    ];
+    // Leave room at the bottom for the verse and the buttons.
+    const bt = new Vector3(0, L.maBase + L.maH * 0.42, L.maZ + 0.5);
+    this.shots.blessing = fitShot(S, blessPts, bt, new Vector3(0, 0.2, 1), { x: 0.9, y: 0.62 });
+    this.shots.blessing.target.y -= L.maH * 0.12;
+    this.shots.blessing.pos.y -= L.maH * 0.12;
+    if (this.state === 'lighting' || this.state === 'dark') this.rig.snap(this.shots.steps);
+    if (this.state === 'blessing') this.rig.snap(this.shots.blessing);
+  }
+
+  // ---------- states ----------
+
+  private enterGate(): void {
+    this.state = 'gate';
+    const g = config.copy.gate;
+    this.overlay.say('gate-title', { bn: g.title, en: g.sub }, 'upper', 0, 'hero');
+    this.overlay.buttons('gate-btn', [
+      { label: g.button.bn, sub: g.button.en, primary: true, onClick: () => this.lightFirst() },
+    ]);
+  }
+
+  private lightFirst(): void {
+    if (this.state !== 'gate') return;
+    parallax.requestMotion();
+    this.overlay.hide('gate-title');
+    this.overlay.hide('gate-btn');
+    this.first.ignite(0);
+    buzz(18);
+    this.state = 'dark';
+    const c = config.intro;
+    gsap.delayedCall(0.9, () => this.overlay.say('dark', config.copy.intro.dark, 'top', c.darkSeconds));
+    this.rig.to(this.shots.steps, 5.5, 'power2.inOut');
+    gsap.delayedCall(c.darkSeconds + 1.2, () => this.startLighting());
+  }
+
+  private startLighting(): void {
+    if (this.state !== 'dark') return;
+    this.state = 'lighting';
+    this.overlay.hide('dark');
+    const i = config.copy.intro.invite;
+    this.overlay.say('invite', { bn: i.bn, en: isTouch() ? config.copy.intro.inviteTouch : i.en }, 'top');
+    this.skipBtn.hidden = false;
+    this.idle = 0;
+    this.stage.canvas.classList.add('carry');
+  }
+
+  private onLampLit(): void {
+    const lit = this.lamps.litCount;
+    this.idle = 0;
+    if (lit >= 1) this.overlay.hide('invite');
+    this.counterEl.textContent = `${bn(lit)} / ${bn(config.intro.count)}`;
+    this.counterEl.classList.add('on');
+    if (lit % 12 === 0) buzz(8);
+    if (this.state === 'lighting' && lit >= config.intro.count * config.intro.autoFinishAt) this.finish();
+  }
+
+  /** Light whatever is left, back row last, then midnight. */
+  private finish(): void {
+    if (this.state !== 'lighting') return;
+    this.state = 'finishing';
+    this.assist?.kill();
+    this.ghost = null;
+    let d = 0;
+    for (let i = 0; i < this.lamps.count; i++) {
+      if (!this.lamps.isLit(i)) {
+        this.lamps.ignite(i, d);
+        d += 0.05;
+      }
+    }
+    gsap.delayedCall(d + 0.8, () => this.midnight());
+  }
+
+  private skip(): void {
+    if (this.state === 'dark' || this.state === 'lighting') {
+      this.state = 'lighting';
+      this.rig.snap(this.shots.steps);
+      this.overlay.hide('dark');
+      this.overlay.hide('invite');
+      for (let i = 0; i < this.lamps.count; i++) this.lamps.ignite(i, (i % this.lay.perRow) * 0.01 + Math.floor(i / this.lay.perRow) * 0.08);
+      this.state = 'finishing';
+      gsap.delayedCall(1.2, () => this.midnight());
+    }
+  }
+
+  private midnight(): void {
+    if (this.state === 'midnight' || this.state === 'blessing') return;
+    this.state = 'midnight';
+    this.skipBtn.hidden = true;
+    this.counterEl.classList.remove('on');
+    this.stage.canvas.classList.remove('carry');
+    this.carrying = false;
+    const c = config.intro;
+    this.overlay.say('midnight', config.copy.intro.midnight, 'top', 3.2);
+    buzz([30, 80, 30]);
+    this.rig.to(this.shots.ma, 4.2, 'power2.inOut');
+    const tl = gsap.timeline();
+    tl.to(this, { riseTarget: 1.25, duration: 3.4, ease: 'power1.inOut' }, 0.4);
+    tl.to(this, { haloAmp: 0.55, duration: 2.6, ease: 'power2.out' }, 1.6);
+    tl.to(this.stage, { bloomBoost: 0.7, duration: 0.8, ease: 'power2.out' }, 2.6);
+    tl.to(this.stage, { bloomBoost: 0.18, duration: 2.5, ease: 'power2.inOut' }, 3.4);
+    tl.call(() => this.startPetals(), [], 2.8);
+    tl.call(() => this.bless(), [], c.midnightSeconds);
+  }
+
+  private bless(): void {
+    this.state = 'blessing';
+    this.rig.to(this.shots.blessing, 3.5, 'power2.inOut');
+    const v = config.copy.intro.verse;
+    gsap.delayedCall(0.8, () => this.overlay.say('verse', { bn: `${v[0]}<br>${v[1]}` }, 'top', 0, 'verse'));
+    gsap.delayedCall(3.2, () => {
+      this.overlay.say('greet', { bn: config.copy.intro.greeting, en: config.copy.intro.greetingSub }, 'bottom', 0, 'greet');
+      if (!this.blessed) {
+        this.blessed = true;
+        this.onBlessing();
+      }
+    });
+  }
+
+  /** Watch again: back to dark steps with only the first lamp burning. */
+  replay(): void {
+    gsap.killTweensOf(this);
+    this.overlay.clear();
+    this.lamps.setAll(false, true);
+    this.rise = this.riseTarget = 0;
+    this.haloAmp = 0;
+    this.stage.bloomBoost = 0;
+    for (const p of this.petals) this.stage.scene.remove(p.s);
+    this.petals = [];
+    this.embers.clear();
+    this.counterEl.classList.remove('on');
+    this.state = 'dark';
+    this.rig.to(this.shots.steps, 1.5);
+    gsap.delayedCall(1.2, () => this.startLighting());
+  }
+
+  // ---------- input ----------
+
+  private bindInput(): void {
+    const el = this.stage.canvas;
+    const pos = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      this.pointer.px = this.pointer.x;
+      this.pointer.py = this.pointer.y;
+      this.pointer.x = e.clientX - r.left;
+      this.pointer.y = e.clientY - r.top;
+    };
+    el.addEventListener('pointerdown', (e) => {
+      pos(e);
+      this.pointer.px = this.pointer.x;
+      this.pointer.py = this.pointer.y;
+      this.pointer.down = true;
+      if (this.state === 'lighting') {
+        this.carrying = true;
+        el.setPointerCapture(e.pointerId);
+        this.sweep(this.pointer.x, this.pointer.y, this.pointer.x, this.pointer.y);
+      }
+    });
+    el.addEventListener('pointermove', (e) => {
+      pos(e);
+      this.pointer.inside = true;
+      if (this.state !== 'lighting') return;
+      if (e.pointerType === 'mouse') this.carrying = true;
+      if (this.carrying) this.sweep(this.pointer.px, this.pointer.py, this.pointer.x, this.pointer.y);
+    });
+    const up = (e: PointerEvent) => {
+      this.pointer.down = false;
+      if (e.pointerType !== 'mouse') this.carrying = false;
+    };
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('pointerleave', (e) => {
+      this.pointer.inside = false;
+      if (e.pointerType === 'mouse') this.carrying = false;
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' || e.code === 'Enter') {
+        if (this.state === 'gate') {
+          e.preventDefault();
+          this.lightFirst();
+        } else if (this.state === 'lighting' && !this.keyHeld) {
+          e.preventDefault();
+          this.keyHeld = true;
+          this.runAssist(true);
+        }
+      }
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space' || e.code === 'Enter') this.keyHeld = false;
+    });
+  }
+
+  /** Light every lamp whose flame lies near the segment the pointer just travelled. */
+  private sweep(x0: number, y0: number, x1: number, y1: number): void {
+    if (this.state !== 'lighting') return;
+    const s = this.lamps.screen(this.screenPos);
+    const { perRow } = this.lay;
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const len2 = dx * dx + dy * dy;
+    for (let i = 0; i < this.lamps.count; i++) {
+      if (this.lamps.isLit(i)) continue;
+      const p = s[i]!;
+      const j = i % perRow;
+      const nb = s[j < perRow - 1 ? i + 1 : i - 1]!;
+      const gap = Math.hypot(nb.x - p.x, nb.y - p.y);
+      const r = Math.max(config.intro.catchMinPx, gap * config.intro.catchFraction);
+      let t = len2 > 0 ? ((p.x - x0) * dx + (p.y - y0) * dy) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      const d = Math.hypot(x0 + dx * t - p.x, y0 + dy * t - p.y);
+      // Lamps further along the stroke catch a moment later, so a fast sweep still reads as fire travelling.
+      if (d < r) this.lamps.ignite(i, t * 0.08);
+    }
+  }
+
+  /** Show how it's done: a ghost flame sweeps the lowest row that still has dark lamps. */
+  private runAssist(continuous = false): void {
+    if (this.state !== 'lighting' || this.assist?.isActive()) return;
+    const { perRow, rows } = this.lay;
+    let row = -1;
+    for (let k = 0; k < rows && row < 0; k++) {
+      for (let j = 0; j < perRow; j++) if (!this.lamps.isLit(k * perRow + j)) row = k;
+    }
+    if (row < 0) return;
+    const s = this.lamps.screen(this.screenPos);
+    const a = s[row * perRow]!;
+    const b = s[row * perRow + perRow - 1]!;
+    const g = { x: a.x - 30, y: a.y };
+    this.ghost = g;
+    let last = { ...g };
+    this.assist = gsap.to(g, {
+      x: b.x + 30,
+      y: b.y,
+      duration: 1.8,
+      ease: 'sine.inOut',
+      onUpdate: () => {
+        this.sweep(last.x, last.y, g.x, g.y);
+        last = { ...g };
+      },
+      onComplete: () => {
+        this.ghost = null;
+        this.idle = 0;
+        if (continuous && this.keyHeld) this.runAssist(true);
+      },
+    });
+  }
+
+  // ---------- frame ----------
+
+  private update(dt: number): void {
+    if (this.state === 'loading') return;
+    if (this.state === 'lighting') {
+      this.idle += dt;
+      if (this.idle > config.intro.assistAfterSeconds && !this.carrying) {
+        this.idle = -3;
+        this.runAssist();
+      }
+    }
+
+    // The carried flame: on the pointer while carrying, on the ghost while it demonstrates.
+    const at = this.ghost ?? (this.carrying || (this.pointer.inside && this.state === 'lighting' && !isTouch()) ? this.pointer : null);
+    const want = at && (this.state === 'lighting' || this.state === 'finishing') ? 1 : 0;
+    this.carryAmp += (want - this.carryAmp) * damp(0.08, dt);
+    this.carry.master = this.carryAmp;
+    this.carry.setSize(0, this.lamps.size[0]! * 1.5 * (0.3 + 0.7 * this.carryAmp));
+    if (at) {
+      const r = this.stage.canvas.getBoundingClientRect();
+      const ndc = new Vector2((at.x / r.width) * 2 - 1, 1 - (at.y / r.height) * 2);
+      this.raycaster.setFromCamera(ndc, this.stage.camera);
+      const hit = this.raycaster.ray.intersectPlane(this.stepsPlane, new Vector3());
+      if (hit) this.carry.setPosition(0, hit);
+    }
+
+    // The light climbs Ma as the rows fill.
+    if (this.state === 'lighting' || this.state === 'finishing' || this.state === 'dark') {
+      this.riseTarget = 0.05 + 0.6 * (this.lamps.litCount / this.lamps.count);
+    }
+    this.rise += (this.riseTarget - this.rise) * damp(0.5, dt);
+    const m = lu(this.maMat);
+    m.uRise.value = this.rise;
+    m.uRiseGain.value = 0.95 * Math.min(1, this.rise * 4);
+    const b = lu(this.backMat);
+    b.uRise.value = this.rise * 0.6;
+    b.uRiseGain.value = 0.35 * Math.min(1, this.rise * 3);
+    this.halo.amp(0, this.haloAmp);
+    this.halo.commit();
+
+    if (this.state === 'midnight' || this.state === 'blessing') this.emitEmbers(dt);
+    this.updatePetals(dt);
+  }
+
+  private emitEmbers(dt: number): void {
+    const rate = this.state === 'midnight' ? 50 : 10;
+    const n = Math.random() < (rate * dt) % 1 ? Math.ceil(rate * dt) : Math.floor(rate * dt);
+    const p = new Vector3();
+    for (let k = 0; k < n; k++) {
+      const i = Math.floor(Math.random() * this.lamps.count);
+      this.lamps.flamePoint(i, p);
+      this.embers.emit({
+        x: p.x,
+        y: p.y + 0.05,
+        z: p.z,
+        vx: (Math.random() - 0.5) * 0.2,
+        vy: 0.3 + Math.random() * 0.5,
+        life: 2 + Math.random() * 2.5,
+        size: 0.025 + Math.random() * 0.03,
+        color: new Color(config.palette.amber),
+        heat: 2.2,
+      });
+    }
+  }
+
+  private startPetals(): void {
+    if (!this.petalTex.length) return;
+    const L = this.lay;
+    for (let i = 0; i < 42; i++) {
+      const mat = new SpriteMaterial({
+        map: this.petalTex[i % this.petalTex.length]!,
+        color: new Color('#ffcfb8').multiplyScalar(0.9),
+        transparent: true,
+        depthWrite: false,
+      });
+      const s = new Sprite(mat);
+      const sz = 0.16 + Math.random() * 0.1;
+      s.scale.set(sz, sz, 1);
+      const x0 = (Math.random() - 0.5) * L.maW * 2.2;
+      s.position.set(x0, L.maBase + L.maH + 0.5 + Math.random() * 3, L.maZ + 0.6 + Math.random() * 2.5);
+      s.renderOrder = 40;
+      this.stage.scene.add(s);
+      this.petals.push({ s, vy: 0.35 + Math.random() * 0.3, ph: Math.random() * 6.28, spin: (Math.random() - 0.5) * 2, x0 });
+    }
+  }
+
+  private updatePetals(dt: number): void {
+    const floor = this.lay ? this.lay.top - this.lay.rise * 3 : 0;
+    for (const p of this.petals) {
+      p.ph += dt;
+      p.s.position.y -= p.vy * dt;
+      p.s.position.x = p.x0 + Math.sin(p.ph * 1.3) * 0.25;
+      (p.s.material as SpriteMaterial).rotation += p.spin * dt;
+      if (p.s.position.y < floor) {
+        p.s.position.y = this.lay.maBase + this.lay.maH + 0.8;
+      }
+    }
+  }
+}
