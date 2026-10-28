@@ -1,6 +1,6 @@
 import { gsap } from 'gsap';
 import { createNoise2D } from 'simplex-noise';
-import { Group, Mesh, PlaneGeometry, Vector2, Vector3, type ShaderMaterial, type Texture } from 'three';
+import { Group, Mesh, PlaneGeometry, RepeatWrapping, Vector2, Vector3, type ShaderMaterial, type Texture } from 'three';
 import { config } from '../config';
 import { CameraRig, fitShot, type Shot } from '../gl/camera';
 import { Glows } from '../gl/glows';
@@ -48,6 +48,8 @@ export class Mala implements Chapter {
   private maGroup = new Group();
   private flowers: Flower[] = [];
   private R = 1.5;
+  /** Centre of the water (the generated thala isn't exactly in the middle of its picture). */
+  private C = new Vector2();
   private T = 4;
   private rope: Vector3[] = [];
   private seg = 0.03;
@@ -69,6 +71,7 @@ export class Mala implements Chapter {
   private skipBtn: HTMLButtonElement;
   private fade: HTMLDivElement;
   private maMat!: ShaderMaterial;
+  private backMat!: ShaderMaterial;
   private maLamps!: LampField;
   private lampLight!: Glows;
   private tmp = new Vector3();
@@ -92,16 +95,19 @@ export class Mala implements Chapter {
 
   async init(): Promise<void> {
     const S = this.stage;
-    const [thalaArt, maArt, bowlArt] = await Promise.all([
+    const [thalaArt, maArt, bowlArt, stoneArt, shrineArt] = await Promise.all([
       artOr('mala/thala.webp', ph.thala),
       artOr('intro/ma-mala.webp', () => ph.maStandIn(true)),
       artOr('common/prodip.webp', ph.prodipBowl),
+      artOr('intro/stone.webp', ph.stone),
+      artOr('intro/shrine.webp', ph.shrine),
     ]);
     let jaba: Texture[] = await loadSeries('mala/jaba', 4);
     if (!jaba.length) jaba = [0, 1, 2, 3].map((i) => ph.jaba(i));
 
     // A dark floor so the cloth's edge never meets plain black.
-    const floorMat = litMaterial(S, ph.stone(), { ambient: 0.05, gain: 0.5, transparent: false, repeat: [8, 8] });
+    stoneArt.tex.wrapS = stoneArt.tex.wrapT = RepeatWrapping;
+    const floorMat = litMaterial(S, stoneArt.tex, { ambient: 0.025, gain: 0.45, transparent: false, repeat: [10, 10] });
     const floor = new Mesh(new PlaneGeometry(40, 40), floorMat);
     floor.position.z = -0.02;
     this.thala.add(floor);
@@ -109,14 +115,22 @@ export class Mala implements Chapter {
     const thala = new Mesh(new PlaneGeometry(this.T, this.T), thalaMat);
     this.thala.add(thala);
     // The water is about 76% of the picture's width (see the thala prompt).
-    this.R = this.T * 0.36;
+    // Measured on the generated thala: water centred at (0.505, 0.49) of the picture, radius 0.31 of its width.
+    if (thalaArt.real) {
+      this.R = this.T * 0.31;
+      this.C.set(this.T * 0.005, this.T * 0.01);
+    } else {
+      this.R = this.T * 0.36;
+    }
     S.scene.add(this.thala);
 
     // One oil lamp just outside the frame on the left lights the thala, as in the picture.
     this.lampLight = new Glows(2, S.lightScene);
     this.lampLight.color(0, config.palette.amber);
     this.lampLight.color(1, '#ffcf9a');
-    this.lampLight.set(0, -this.T * 0.62, this.T * 0.05, 0.1, this.T * 1.7, 0.9);
+    // On the generated picture the lamp stands in the top-left corner.
+    if (thalaArt.real) this.lampLight.set(0, -this.T * 0.47, this.T * 0.42, 0.1, this.T * 1.9, 0.9);
+    else this.lampLight.set(0, -this.T * 0.62, this.T * 0.05, 0.1, this.T * 1.7, 0.9);
     this.lampLight.set(1, 0, 0, 0.1, this.T * 1.3, 0.18);
     this.lampLight.commit();
 
@@ -129,7 +143,7 @@ export class Mala implements Chapter {
     for (let tries = 0; homes.length < n && tries < 20000; tries++) {
       const a = rnd() * Math.PI * 2;
       const r = Math.sqrt(rnd()) * (this.R - size * 0.56);
-      const p = new Vector2(Math.cos(a) * r, Math.sin(a) * r);
+      const p = new Vector2(this.C.x + Math.cos(a) * r, this.C.y + Math.sin(a) * r);
       if (homes.every((h) => h.distanceTo(p) > size * 1.02)) homes.push(p);
     }
     for (let i = 0; i < homes.length; i++) {
@@ -146,7 +160,7 @@ export class Mala implements Chapter {
     // Thread: rests coiled off the bottom-right of the thala, needle pointing in.
     const N = config.mala.ropeSegments;
     this.seg = (this.T * 2.2) / N;
-    this.tip.set(this.R * 0.95, -this.R * 0.95, 0.06);
+    this.tip.set(this.C.x + this.R * 0.95, this.C.y - this.R * 0.95, 0.06);
     for (let k = 0; k < N; k++) {
       this.rope.push(new Vector3(this.tip.x + 0.25 + k * this.seg * 0.7, this.tip.y - 0.1 - Math.sin(k * 0.05) * 0.4, 0.06));
     }
@@ -154,6 +168,13 @@ export class Mala implements Chapter {
     // Ma wearing the garland, far to the side; the camera cuts to her at the end.
     this.maGroup.position.set(40, 0, 0);
     const maH = 4;
+    // The same shrine wall as the opening, dim, behind her.
+    this.backMat = litMaterial(S, shrineArt.tex, { ambient: 0.02, gain: 0.45, transparent: false });
+    lu(this.backMat).uRiseColor.value.set('#7a3a1c');
+    const backW = 16;
+    const back = new Mesh(new PlaneGeometry(backW, backW / aspectOf(shrineArt.tex)), this.backMat);
+    back.position.set(0, maH * 0.62, -2.4);
+    this.maGroup.add(back);
     this.maMat = litMaterial(S, maArt.tex, { ambient: 0.05, gain: 0.8 });
     const ma = new Mesh(new PlaneGeometry(maH * aspectOf(maArt.tex), maH), this.maMat);
     ma.position.y = maH / 2;
@@ -165,7 +186,7 @@ export class Mala implements Chapter {
       S,
       [new Vector3(40 - 1.5, lampSize / bowlAspect * 0.4, 0.6), new Vector3(40 + 1.5, lampSize / bowlAspect * 0.4, 0.6)],
       lampSize,
-      { bowl: bowlArt.tex, bowlAspect, light: 8, lightAmp: 0.55 },
+      { bowl: bowlArt.tex, bowlAspect, ...(bowlArt.real ? config.flames.prodip : config.flames.prodipPlaceholder), light: 8, lightAmp: 0.55 },
     );
     lu(this.maMat).uRise.value = -0.2;
 
@@ -177,11 +198,12 @@ export class Mala implements Chapter {
 
   private computeShots(): void {
     const S = this.stage;
-    const r = this.R * 1.18;
+    const r = this.R * 1.25;
+    const { x: cx, y: cy } = this.C;
     this.shots.thala = fitShot(
       S,
-      [new Vector3(-r, 0, 0), new Vector3(r, 0, 0), new Vector3(0, -r, 0), new Vector3(0, r, 0)],
-      new Vector3(0, 0, 0),
+      [new Vector3(cx - r, cy, 0), new Vector3(cx + r, cy, 0), new Vector3(cx, cy - r, 0), new Vector3(cx, cy + r, 0)],
+      new Vector3(cx, cy, 0),
       new Vector3(0, 0, 1),
       { x: 0.94, y: 0.78 },
     );
@@ -189,9 +211,10 @@ export class Mala implements Chapter {
     this.shots.ma = fitShot(
       S,
       [new Vector3(mx - 1.6, 0, 0), new Vector3(mx + 1.6, 0, 0), new Vector3(mx, 4.1, 0), new Vector3(mx, -0.1, 0)],
-      new Vector3(mx, 2.1, 0),
+      // Centred a little low so Ma sits higher and the line below her has room.
+      new Vector3(mx, 1.65, 0),
       new Vector3(0, 0.05, 1),
-      { x: 0.86, y: 0.72 },
+      { x: 0.86, y: 0.82 },
     );
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     this.canvas2d.width = Math.round(S.width * dpr);
@@ -279,6 +302,8 @@ export class Mala implements Chapter {
     tl.to(this.fade, { opacity: 0, duration: 1.2, ease: 'power1.out' });
     tl.to(lu(this.maMat).uRise, { value: 1.2, duration: 3.2, ease: 'power1.inOut' }, '<');
     tl.to(lu(this.maMat).uRiseGain, { value: 0.95, duration: 1.2 }, '<');
+    tl.to(lu(this.backMat).uRise, { value: 0.7, duration: 3.2, ease: 'power1.inOut' }, '<');
+    tl.to(lu(this.backMat).uRiseGain, { value: 0.35, duration: 1.2 }, '<');
     tl.call(() => this.overlay.say('done', config.copy.mala.done, 'bottom'), [], '-=1.4');
     tl.call(() => {
       this.done = true;
@@ -309,7 +334,7 @@ export class Mala implements Chapter {
       }
       // A faint wake behind the needle in the water.
       this.wakeTimer -= dt;
-      if (this.wakeTimer <= 0 && Math.hypot(this.tip.x, this.tip.y) < this.R && this.pointer.active) {
+      if (this.wakeTimer <= 0 && Math.hypot(this.tip.x - this.C.x, this.tip.y - this.C.y) < this.R && this.pointer.active) {
         this.wakeTimer = 0.16;
         this.ripples.push({ x: this.tip.x, y: this.tip.y, age: 0, life: 0.9, size: this.T * 0.05 });
       }

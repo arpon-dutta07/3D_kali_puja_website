@@ -40,6 +40,14 @@ export const config = {
     igniteSeconds: 0.55,
   },
 
+  /** Where the flame sits on each lamp picture, in lamp widths from its centre (measured on the generated art). */
+  flames: {
+    prodip: { flameX: 0.43, flameLift: 0.17, flameSize: 0.78 },
+    prodipPlaceholder: { flameX: 0, flameLift: 0.16, flameSize: 1.15 },
+    candle: { flameX: -0.02, flameLift: 0.47, flameSize: 0.8 },
+    candlePlaceholder: { flameX: 0, flameLift: 0.5, flameSize: 0.9 },
+  },
+
   intro: {
     count: 108,
     /** Rows of steps. Portrait screens get more, narrower rows so a finger can sweep each one. */
@@ -63,7 +71,7 @@ export const config = {
 
   mala: {
     flowers: 10,
-    flowerSize: 0.14,
+    flowerSize: 0.12,
     needleCatch: 0.6,
     ropeSegments: 160,
   },

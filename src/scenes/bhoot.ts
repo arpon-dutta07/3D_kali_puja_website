@@ -16,22 +16,26 @@ import { cornerButton, counter, Overlay } from '../ui/overlay';
  * Tuned for the layout the prompt asks for; with `?debug`, clicking the house logs the spot under the pointer.
  */
 const SPOTS: Array<[number, number]> = [
-  [0.16, 0.128], [0.62, 0.128],
-  [0.17, 0.3], [0.44, 0.325], [0.66, 0.33],
-  [0.2, 0.47], [0.42, 0.535], [0.62, 0.535],
-  [0.25, 0.735], [0.52, 0.66],
-  [0.84, 0.44], [0.84, 0.69],
-  [0.5, 0.86], [0.22, 0.94],
+  // Roof: by the potted plant, under the clothesline.
+  [0.17, 0.138], [0.6, 0.142],
+  // Top floor: side table, foot of the bed, the desk by the window.
+  [0.15, 0.308], [0.42, 0.338], [0.69, 0.292],
+  // Middle floor: the thakur ghor shelf, the radio, the stairs.
+  [0.21, 0.468], [0.51, 0.476], [0.85, 0.452],
+  // Ground floor: the stove, the dining table, the stairs.
+  [0.17, 0.648], [0.51, 0.668], [0.83, 0.694],
+  // Courtyard: tulsi mancha, the door step, by the well.
+  [0.47, 0.903], [0.63, 0.888], [0.2, 0.948],
 ];
 
 /** Each ghost waits near one lamp; lighting that lamp sends it away for good. */
 const GHOSTS: Array<{ uv: [number, number]; spot: number; size: number }> = [
-  { uv: [0.12, 0.25], spot: 2, size: 0.11 }, // শাঁকচুন্নি at the bedroom window
-  { uv: [0.36, 0.7], spot: 8, size: 0.1 }, // মেছোভূত in the kitchen
-  { uv: [0.78, 0.6], spot: 11, size: 0.11 }, // স্কন্ধকাটা on the stairs
-  { uv: [0.24, 0.84], spot: 13, size: 0.12 }, // গেছোভূত in the guava tree
-  { uv: [0.6, 0.09], spot: 1, size: 0.1 }, // একানড়ে on the roof
-  { uv: [0.52, 0.45], spot: 6, size: 0.09 }, // পেত্নী in the sitting room
+  { uv: [0.47, 0.085], spot: 1, size: 0.075 }, // arms up, by the clothesline
+  { uv: [0.33, 0.27], spot: 3, size: 0.07 }, // reading in bed
+  { uv: [0.4, 0.46], spot: 6, size: 0.07 }, // tea by the cane chair
+  { uv: [0.31, 0.63], spot: 8, size: 0.07 }, // fanning itself in the kitchen
+  { uv: [0.76, 0.6], spot: 10, size: 0.075 }, // gamchha and lantern on the stairs
+  { uv: [0.31, 0.86], spot: 13, size: 0.075 }, // with the cat under the guava tree
 ];
 
 interface Ghost {
@@ -94,6 +98,8 @@ export class Bhoot implements Chapter {
       artOr('common/prodip.webp', ph.prodipBowl),
     ]);
     let ghostTex: Texture[] = await loadSeries('bhoot/ghost', 6);
+    // The drawn stand-ins are dark shapes with glowing eyes; the real ghosts are pale sheets with a faint glow.
+    const ghostGlow = ghostTex.length ? 0.12 : 1.6;
     if (!ghostTex.length) ghostTex = [0, 1, 2, 3, 4, 5].map((i) => ph.ghost(i));
 
     this.W = this.H * aspectOf(houseArt.tex);
@@ -103,11 +109,14 @@ export class Bhoot implements Chapter {
     S.scene.add(house);
 
     const bowlAspect = aspectOf(bowlArt.tex);
-    const size = this.H * 0.022;
-    const spots = SPOTS.map(([u, v]) => this.world(u, v, 0.05));
+    const flame = bowlArt.real ? config.flames.prodip : config.flames.prodipPlaceholder;
+    const size = this.H * 0.024;
+    // Each spot is where the lamp stands; lift the picture so its base sits there.
+    const spots = SPOTS.map(([u, v]) => this.world(u, v, 0.05).add(new Vector3(0, (size / bowlAspect) * 0.42, 0)));
     this.lamps = new LampField(S, spots, size, {
       bowl: bowlArt.tex,
       bowlAspect,
+      ...flame,
       light: 13,
       lightAmp: 0.42,
       halo: 2,
@@ -118,6 +127,7 @@ export class Bhoot implements Chapter {
     this.hand = new LampField(S, [new Vector3(0, 0, 0.12)], size * 1.25, {
       bowl: bowlArt.tex,
       bowlAspect,
+      ...flame,
       light: 15,
       lightAmp: 0.6,
       halo: 2.2,
@@ -128,7 +138,7 @@ export class Bhoot implements Chapter {
     for (const [i, g] of GHOSTS.entries()) {
       const tex = ghostTex[i % ghostTex.length]!;
       const h = this.H * g.size;
-      const mat = litMaterial(S, tex, { ambient: 0.015, gain: 0.9, emissive: 1.6 });
+      const mat = litMaterial(S, tex, { ambient: 0.015, gain: 0.9, emissive: ghostGlow });
       const mesh = new Mesh(new PlaneGeometry(h * aspectOf(tex), h), mat);
       const home = this.world(g.uv[0], g.uv[1], 0.03);
       mesh.position.copy(home);
@@ -174,7 +184,7 @@ export class Bhoot implements Chapter {
     gsap.delayedCall(2.4, () => {
       if (this.finished) return;
       this.overlay.say('invite', { bn: c.invite.bn, en: isTouch() ? undefined : c.invite.en }, 'top');
-      this.counterEl.textContent = `${bn(0)} / ${bn(SPOTS.length)}`;
+      this.counterEl.textContent = `${bn(this.lamps.litCount)} / ${bn(SPOTS.length)}`;
       this.counterEl.classList.add('on');
     });
     this.skipBtn.hidden = false;

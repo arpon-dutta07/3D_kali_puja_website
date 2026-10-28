@@ -36,6 +36,8 @@ export class Chhad implements Chapter {
   private parapetMat!: ShaderMaterial;
   private parapet!: Mesh;
   private ledgeY = 0;
+  /** Height of the wall's top ledge in the parapet picture, as a fraction from its bottom. */
+  private ledgeFrac = 0.35;
   private candles!: LampField;
   private prodips!: LampField;
   private nCandles = 12;
@@ -109,6 +111,8 @@ export class Chhad implements Chapter {
     this.city.position.z = -14;
     S.scene.add(this.city);
 
+    // The generated wall is cut out tight, its ledge 39% down from the top of the picture.
+    this.ledgeFrac = parapetArt.real ? 1 - 0.393 : 0.35;
     this.parapetMat = litMaterial(S, parapetArt.tex, { ambient: 0.16, gain: 1.25 });
     this.parapet = new Mesh(new PlaneGeometry(1, 1 / aspectOf(parapetArt.tex)), this.parapetMat);
     this.parapet.renderOrder = 6;
@@ -143,8 +147,8 @@ export class Chhad implements Chapter {
     const zero = (n: number) => Array.from({ length: n }, () => new Vector3());
     this.candleAspect = aspectOf(candleArt.tex);
     this.bowlAspect = aspectOf(bowlArt.tex);
-    this.candles = new LampField(S, zero(nC), 1, { bowl: candleArt.tex, bowlAspect: this.candleAspect, flameLift: 0.5, flameSize: 0.9, light: 7, lightAmp: 0.5 });
-    this.prodips = new LampField(S, zero(nP), 1, { bowl: bowlArt.tex, bowlAspect: this.bowlAspect, flameLift: 0.16, light: 7, lightAmp: 0.5 });
+    this.candles = new LampField(S, zero(nC), 1, { bowl: candleArt.tex, bowlAspect: this.candleAspect, ...(candleArt.real ? config.flames.candle : config.flames.candlePlaceholder), light: 7, lightAmp: 0.5 });
+    this.prodips = new LampField(S, zero(nP), 1, { bowl: bowlArt.tex, bowlAspect: this.bowlAspect, ...(bowlArt.real ? config.flames.prodip : config.flames.prodipPlaceholder), light: 7, lightAmp: 0.5 });
     this.candles.onIgnite = this.prodips.onIgnite = () => this.onCandle();
     this.carry = new LampField(S, [new Vector3()], 1, { bowl: null, light: 6, lightAmp: 0.5 });
     this.carry.setAll(true, true);
@@ -174,21 +178,22 @@ export class Chhad implements Chapter {
     this.city.scale.set(cs, cs, 1);
     this.city.position.y = 0;
 
-    // Parapet: the wall is the bottom 35% of its picture; make that about 30% of the screen.
+    // Parapet: its ledge sits about 30% up the screen, and the wall spans the whole width.
     const pAspect = aspectOfMesh(this.parapet);
-    const ph_ = Math.max((w * 1.1) / pAspect, (h * 0.3) / 0.35);
+    const ph_ = Math.max((w * 1.06) / pAspect, (h * 0.3) / this.ledgeFrac);
     const pw = ph_ * pAspect;
     this.parapet.scale.set(pw, pw, 1);
     this.parapet.position.set(0, -h / 2 + ph_ / 2, 0);
-    this.ledgeY = -h / 2 + ph_ * 0.35;
+    this.ledgeY = -h / 2 + ph_ * this.ledgeFrac;
 
     // Candles along the ledge, between the tubri (left) and the pole (right).
-    const span = w * 0.62;
+    // Kept clear of the pillars and potted plants at both ends of the wall.
+    const span = w * 0.56;
     const size = clamp(span / this.nCandles, 0.26, 0.62) * 0.75;
     let iC = 0;
     let iP = 0;
     for (let i = 0; i < this.nCandles; i++) {
-      const x = -span / 2 + (span * (i + 0.5)) / this.nCandles - w * 0.03;
+      const x = -span / 2 + (span * (i + 0.5)) / this.nCandles + w * 0.03;
       if (i % 2 === 0) {
         this.candles.setSize(iC, size * 0.7);
         this.candles.setPosition(iC++, this.tmp.set(x, this.ledgeY + (size * 0.7) / this.candleAspect / 2, 0.1));
@@ -203,7 +208,7 @@ export class Chhad implements Chapter {
     const ts = size * 1.3;
     const tAspect = aspectOfMesh(this.tubri);
     this.tubri.scale.set(ts, ts, 1);
-    this.tubriPos.set(-w * 0.4, this.ledgeY + ts / tAspect / 2, 0.1);
+    this.tubriPos.set(-w * 0.31, this.ledgeY + ts / tAspect / 2, 0.1);
     this.tubri.position.copy(this.tubriPos);
 
     // Pole behind the parapet on the right, with its pulley above the top of the screen's upper third.

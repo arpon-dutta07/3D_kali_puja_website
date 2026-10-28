@@ -173,7 +173,7 @@ export class Intro {
         pts.push(new Vector3(x, (k + 1) * L.rise + (size / bowlAspect) * 0.42, -k * L.tread - 0.2));
       }
     }
-    const lampOpts = { bowl: bowlArt.tex, bowlAspect, flameLift: 0.16, flameSize: 1.15, light: 5.5, lightAmp: 0.32, halo: 1.5, haloAmp: 0.16, ambient: 0.025 };
+    const lampOpts = { bowl: bowlArt.tex, bowlAspect, ...(bowlArt.real ? config.flames.prodip : config.flames.prodipPlaceholder), light: 5.5, lightAmp: 0.32, halo: 1.5, haloAmp: 0.16, ambient: 0.025 };
     this.lamps = new LampField(S, pts, size, lampOpts);
     this.lamps.onIgnite = () => this.onLampLit();
     this.first = new LampField(S, [new Vector3(0, (size * 1.6) / bowlAspect * 0.42, 1.25)], size * 1.6, {
@@ -232,12 +232,12 @@ export class Intro {
       new Vector3(-L.maW / 2, L.maBase, L.maZ),
       new Vector3(L.maW / 2, L.maBase, L.maZ),
       new Vector3(0, maTop, L.maZ),
-      new Vector3(-halfW * 0.8, L.top - L.rise * 2, -(L.rows - 3) * L.tread),
-      new Vector3(halfW * 0.8, L.top - L.rise * 2, -(L.rows - 3) * L.tread),
+      new Vector3(-halfW * 0.55, L.top - L.rise, -(L.rows - 1.5) * L.tread),
+      new Vector3(halfW * 0.55, L.top - L.rise, -(L.rows - 1.5) * L.tread),
     ];
     // Leave room at the bottom for the verse and the buttons.
     const bt = new Vector3(0, L.maBase + L.maH * 0.42, L.maZ + 0.5);
-    this.shots.blessing = fitShot(S, blessPts, bt, new Vector3(0, 0.2, 1), { x: 0.9, y: 0.62 });
+    this.shots.blessing = fitShot(S, blessPts, bt, new Vector3(0, 0.2, 1), { x: 0.9, y: 0.68 });
     this.shots.blessing.target.y -= L.maH * 0.12;
     this.shots.blessing.pos.y -= L.maH * 0.12;
     if (this.state === 'lighting' || this.state === 'dark') this.rig.snap(this.shots.steps);
@@ -556,10 +556,10 @@ export class Intro {
         depthWrite: false,
       });
       const s = new Sprite(mat);
-      const sz = 0.16 + Math.random() * 0.1;
+      const sz = 0.09 + Math.random() * 0.07;
       s.scale.set(sz, sz, 1);
       const x0 = (Math.random() - 0.5) * L.maW * 2.2;
-      s.position.set(x0, L.maBase + L.maH + 0.5 + Math.random() * 3, L.maZ + 0.6 + Math.random() * 2.5);
+      s.position.set(x0, L.maBase + L.maH + 0.5 + Math.random() * 3, L.maZ + 0.3 + Math.random() * 1.6);
       s.renderOrder = 40;
       this.stage.scene.add(s);
       this.petals.push({ s, vy: 0.35 + Math.random() * 0.3, ph: Math.random() * 6.28, spin: (Math.random() - 0.5) * 2, x0 });

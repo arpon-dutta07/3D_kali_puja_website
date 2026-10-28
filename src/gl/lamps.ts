@@ -93,6 +93,8 @@ export interface LampOptions {
   bowlAspect?: number;
   /** Flame base height above the lamp position, in lamp sizes. */
   flameLift?: number;
+  /** Flame sideways from the lamp centre, in lamp sizes (a prodip's wick sits in its spout). */
+  flameX?: number;
   /** Flame quad height in lamp sizes. */
   flameSize?: number;
   /** Light radius in lamp sizes, and its strength. */
@@ -148,6 +150,7 @@ export class LampField {
     this.o = {
       bowlAspect: opts.bowlAspect ?? 1,
       flameLift: opts.flameLift ?? 0.12,
+      flameX: opts.flameX ?? 0,
       flameSize: opts.flameSize ?? 1.1,
       light: opts.light ?? 7,
       lightAmp: opts.lightAmp ?? 0.55,
@@ -215,7 +218,7 @@ export class LampField {
         uCore: { value: new Color(config.palette.flameCore) },
         uQuad: { value: [fs * 0.5, fs] },
         // The flame quad's base (uv.y 0.18) sits at flameLift.
-        uOffset: { value: [0, this.o.flameLift + fs * (0.5 - 0.18)] },
+        uOffset: { value: [this.o.flameX, this.o.flameLift + fs * (0.5 - 0.18)] },
       },
     });
     const flame = new Mesh(makeGeo(this.aLitFlame), this.flameMat);
@@ -239,9 +242,10 @@ export class LampField {
   private placeGlows(i: number): void {
     const p = this.pos[i]!;
     const s = this.size[i]!;
+    const fx = p.x + this.o.flameX * s;
     const fy = p.y + (this.o.flameLift + this.o.flameSize * 0.25) * s;
-    this.lights.set(i, p.x, fy, p.z, this.o.light * s, 0);
-    this.halos.set(i, p.x, fy, p.z + 0.001, this.o.halo * s, 0);
+    this.lights.set(i, fx, fy, p.z, this.o.light * s, 0);
+    this.halos.set(i, fx, fy, p.z + 0.001, this.o.halo * s, 0);
   }
 
   get litCount(): number {
@@ -296,7 +300,7 @@ export class LampField {
   /** Where the flame sits (for hit tests and sparks). */
   flamePoint(i: number, out = new Vector3()): Vector3 {
     const p = this.pos[i]!;
-    return out.set(p.x, p.y + (this.o.flameLift + this.o.flameSize * 0.2) * this.size[i]!, p.z);
+    return out.set(p.x + this.o.flameX * this.size[i]!, p.y + (this.o.flameLift + this.o.flameSize * 0.2) * this.size[i]!, p.z);
   }
 
   setVisible(v: boolean): void {
