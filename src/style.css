@@ -979,3 +979,17 @@ canvas.carry {
     transition-duration: 0.4s;
   }
 }
+
+/* ---------- round 4 ---------- */
+
+/* Gradient lettering is painted only inside the element's own box, and Bengali vowel signs (ী, ি, ৈ) rise above the
+   line: give them room, or their tops get cut off. The negative margins keep the layout where it was. */
+.line.hero .bn,
+.gate .title,
+.card h2,
+.chapter-title h2,
+.end-card h2 {
+  padding: 0.24em 0.1em 0.14em;
+  margin-top: -0.24em;
+  margin-bottom: -0.14em;
+}
