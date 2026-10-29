@@ -384,58 +384,6 @@ canvas.carry {
   }
 }
 
-/* ---------- end ---------- */
-
-.end {
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  padding: 14vh 24px 10vh;
-  scroll-snap-align: start;
-  background:
-    radial-gradient(70% 55% at 50% 45%, rgba(150, 30, 24, 0.22), transparent 70%),
-    var(--night);
-}
-
-.end .kicker {
-  margin: 0 0 16px;
-  font-size: 17px;
-  word-spacing: 0.35em;
-  color: var(--gold);
-}
-
-.end h2 {
-  margin: 0;
-  font-weight: 400;
-  font-size: clamp(44px, 8vw, 88px);
-  color: #ffd7a0;
-  text-shadow: 0 0 30px rgba(255, 140, 60, 0.35);
-}
-
-.end p {
-  margin: 12px 0 0;
-  color: var(--ink-dim);
-  font-size: clamp(18px, 2.2vw, 22px);
-}
-
-.end .buttons {
-  margin-top: 36px;
-}
-
-.end .credit {
-  margin-top: 48px;
-  font-family: var(--en);
-  font-style: italic;
-  font-size: 15px;
-  color: rgba(243, 230, 207, 0.4);
-}
-
-.end .credit a {
-  color: inherit;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .line,
   .card .inner {
@@ -746,62 +694,12 @@ canvas.carry {
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
 }
 
-.end {
-  position: relative;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .gate .corona,
   .gate .rim,
   .gate .light-btn svg {
     animation: none;
   }
-}
-
-/* ---------- sound toggle (fireworks scenes) ---------- */
-
-.sound-btn {
-  position: absolute;
-  top: max(16px, env(safe-area-inset-top));
-  left: 16px;
-  z-index: 4;
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  appearance: none;
-  border: 1px solid rgba(232, 181, 74, 0.4);
-  border-radius: 50%;
-  background: rgba(10, 6, 4, 0.5);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: rgba(255, 228, 180, 0.88);
-  cursor: pointer;
-  pointer-events: auto;
-  transition:
-    border-color 0.3s ease,
-    background 0.3s ease;
-}
-
-.sound-btn:hover {
-  border-color: var(--amber);
-  background: rgba(50, 22, 8, 0.6);
-}
-
-.sound-btn:focus-visible {
-  outline: 2px solid var(--amber);
-  outline-offset: 3px;
-}
-
-.sound-btn svg {
-  width: 20px;
-  height: 20px;
-  fill: currentColor;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 /* ---------- sound toggle (fireworks scenes) ---------- */
@@ -930,5 +828,154 @@ canvas.carry {
     min-width: 70px;
     padding: 8px 8px 7px;
     font-size: 14px;
+  }
+}
+
+/* ---------- end: fireworks over the city ---------- */
+
+.end-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(0deg, rgba(3, 2, 2, 0.95) 0%, rgba(3, 2, 2, 0.8) 24%, rgba(3, 2, 2, 0.28) 46%, transparent 60%);
+}
+
+.end-card {
+  position: absolute;
+  left: 50%;
+  bottom: max(26px, calc(env(safe-area-inset-bottom) + 16px));
+  translate: -50% 0;
+  z-index: 2;
+  width: min(92vw, 720px);
+  text-align: center;
+  pointer-events: none;
+}
+
+.end-card > * {
+  opacity: 0;
+  translate: 0 16px;
+  filter: blur(6px);
+  transition:
+    opacity 1.2s ease,
+    translate 1.4s cubic-bezier(0.2, 0.7, 0.2, 1),
+    filter 1.2s ease;
+}
+
+.end.on .end-card > * {
+  opacity: 1;
+  translate: 0 0;
+  filter: blur(0);
+}
+
+.end.on .end-card > :nth-child(2) {
+  transition-delay: 0.2s;
+}
+.end.on .end-card > :nth-child(3) {
+  transition-delay: 0.45s;
+}
+.end.on .end-card > :nth-child(4) {
+  transition-delay: 0.6s;
+}
+.end.on .end-card > :nth-child(5) {
+  transition-delay: 0.9s;
+}
+.end.on .end-card > :nth-child(6) {
+  transition-delay: 1.15s;
+}
+
+.end-card .kicker {
+  margin: 0 0 6px;
+  font-size: 16px;
+  word-spacing: 0.35em;
+  color: var(--gold);
+}
+
+.end-card h2 {
+  margin: 0;
+  font-weight: 400;
+  font-size: clamp(58px, 11vw, 116px);
+  line-height: 1.12;
+  background: linear-gradient(180deg, #fff4d8 0%, #f4c96e 48%, #c27b2e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: blur(6px) drop-shadow(0 0 26px rgba(255, 150, 60, 0));
+}
+
+.end.on .end-card h2 {
+  filter: blur(0) drop-shadow(0 0 26px rgba(255, 150, 60, 0.38));
+}
+
+.end-card .rule {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 10px auto 8px;
+}
+
+.end-card .rule span {
+  width: min(20vw, 130px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(232, 181, 74, 0.85));
+}
+
+.end-card .rule span:last-child {
+  background: linear-gradient(270deg, transparent, rgba(232, 181, 74, 0.85));
+}
+
+.end-card .rule svg {
+  width: 16px;
+  height: 22px;
+  filter: drop-shadow(0 0 8px rgba(255, 150, 60, 0.7));
+}
+
+.end-card .sub {
+  margin: 0;
+  font-size: clamp(22px, 3vw, 30px);
+  color: #f6e4c4;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9);
+}
+
+.end-card .buttons {
+  margin-top: 26px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.end-card .credit {
+  margin: 22px 0 0;
+  font-size: 15px;
+  color: rgba(243, 230, 207, 0.45);
+  pointer-events: auto;
+}
+
+.end-card .credit a {
+  font-family: var(--en);
+  font-style: italic;
+  font-size: 16px;
+  color: rgba(243, 230, 207, 0.7);
+  text-decoration-color: rgba(232, 181, 74, 0.5);
+  text-underline-offset: 3px;
+}
+
+@media (max-height: 640px) and (min-aspect-ratio: 1/1) {
+  .end-card .buttons {
+    margin-top: 16px;
+  }
+  .end-card .credit {
+    margin-top: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .end-card > *,
+  .baji-bar {
+    transition-duration: 0.4s;
   }
 }

@@ -146,6 +146,11 @@ export const config = {
       chorki: 'চরকি',
       skyshot: 'স্কাইশট',
     },
+    end: {
+      kicker: 'কালীপুজো · দীপাবলি ২০২৬',
+      title: 'শুভ দীপাবলি',
+      sub: 'শুভ কালীপুজো',
+    },
     ui: {
       skip: 'Skip',
       share: 'Share',

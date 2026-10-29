@@ -6,6 +6,7 @@ import { Mala } from './scenes/mala';
 import { Bhoot } from './scenes/bhoot';
 import { Chhad } from './scenes/chhad';
 import { Baji } from './scenes/baji';
+import { EndScene } from './scenes/end';
 import { share } from './ui/share';
 import { isDebug } from './lib/device';
 import { advance } from './gl/stage';
@@ -18,6 +19,8 @@ function webglOk(): boolean {
     return false;
   }
 }
+
+const END_FLAME = `<svg viewBox="0 0 24 32" aria-hidden="true"><defs><linearGradient id="fl-end" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff6a2a"/><stop offset=".55" stop-color="#ffb347"/><stop offset="1" stop-color="#fff2c8"/></linearGradient></defs><path d="M12 1C14 7 20 10 20 18a8 8 0 0 1-16 0c0-4 2-6 4-8 0 3 1 5 3 6-1-5 0-10 1-15z" fill="url(#fl-end)"/><path d="M12 14c1.5 2.5 3.5 3.5 3.5 6.5a3.5 3.5 0 0 1-7 0c0-2 1-3 2-4 .2 1.2.8 2 1.6 2.4-.4-1.8-.4-3.4-.1-4.9z" fill="#fff6dc"/></svg>`;
 
 function sceneSection(id: string): HTMLElement {
   const el = document.createElement('section');
@@ -57,10 +60,13 @@ async function boot(): Promise<void> {
     void ch.init();
   });
 
-  // The last screen: greeting, Share, Watch again.
-  const end = document.createElement('footer');
-  end.className = 'end';
-  end.innerHTML = `<div><p class="kicker">${C.gate.kicker}</p><h2>${C.chhad.finale}</h2><p>${C.chhad.finaleSub}</p><div class="buttons"></div><p class="credit">বানিয়েছে <a href="https://www.instagram.com/lyadkhor.coder/" target="_blank" rel="noopener">@lyadkhor.coder</a></p></div>`;
+  // The last screen: fireworks over the city, the greeting low like a poster's title, Share and Watch again.
+  const end = sceneSection('end');
+  end.classList.add('end');
+  end.insertAdjacentHTML(
+    'beforeend',
+    `<div class="end-scrim"></div><div class="end-card"><p class="kicker">${C.end.kicker}</p><h2>${C.end.title}</h2><div class="rule"><span></span>${END_FLAME}<span></span></div><p class="sub">${C.end.sub}</p><div class="buttons"></div><p class="credit">বানিয়েছে <a href="https://www.instagram.com/lyadkhor.coder/" target="_blank" rel="noopener">@lyadkhor.coder</a></p></div>`,
+  );
   const row = end.querySelector<HTMLElement>('.buttons')!;
   const btn = (label: string, primary: boolean, onClick: () => void) => {
     const b = document.createElement('button');
@@ -76,8 +82,10 @@ async function boot(): Promise<void> {
     setTimeout(() => location.reload(), 1200);
   });
   page.appendChild(end);
+  const endScene = new EndScene(end);
+  void endScene.init();
 
-  if (isDebug) (window as unknown as { __kali: unknown }).__kali = { intro, journey, advance, chapters: built };
+  if (isDebug) (window as unknown as { __kali: unknown }).__kali = { intro, journey, advance, chapters: built, end: endScene };
   await intro.init();
 }
 
