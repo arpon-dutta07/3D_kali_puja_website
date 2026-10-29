@@ -5,7 +5,7 @@ import { assetUrl } from '../lib/assets';
  * Sound effects: recorded fireworks (booms, crackle, fizz, whistles) and the ghost house (fan, power cut, tube light,
  * whispers, crickets); sources in public/assets/audio/CREDITS.md. Web Audio, unlocked on the visitor's first tap. Each
  * boom gets a little random pitch and is panned to where it burst, and arrives a moment after the flash, the way it does
- * in a real sky. The section music (src/audio/music.ts) plays through the same output, so one mute covers everything.
+ * in a real sky. The section songs (src/audio/music.ts) follow the same on/off, so one button mutes everything.
  */
 const FILES = [
   'boom-1', 'boom-2', 'boom-3', 'boom-4', 'boom-5', 'boom-6', 'crackle-1', 'crackle-2', 'fizz', 'launch', 'whistle-1', 'whistle-2', 'whistle-3',

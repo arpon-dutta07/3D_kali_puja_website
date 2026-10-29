@@ -1084,3 +1084,15 @@ canvas.carry {
     height: 25px;
   }
 }
+
+/* The section songs play in hidden YouTube players: kept off screen, never seen, never in the way. */
+.yt-music {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 200px;
+  height: 200px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}

@@ -99,6 +99,18 @@ export const config = {
     rockets: 22,
   },
 
+  /**
+   * Each section's song: the YouTube video id (the part after watch?v= or youtu.be/). It plays in a hidden YouTube
+   * player, sound only, on a loop while its section is on screen. The ghost house has its own sounds instead.
+   */
+  music: {
+    intro: 'D7xOMiMa1_g', // থাকতে দিস রে মা
+    mala: '1Aw_yQnMsA4', // তারা তুই ছাড়া কে শান্তি দেবে
+    chhad: 'ZPVknI8Tc7c', // Chanakya
+    baji: 'Kuq3vDEkWJo', // Mere Tumhare Sabke Liye Happy Diwali
+    end: 'fqOgp9ahWA8', // Shubhaarambh
+  },
+
   copy: {
     title: 'কালীপুজো ২০২৬ · Kali Puja 2026',
     gate: {
