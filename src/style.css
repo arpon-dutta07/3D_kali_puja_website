@@ -23,9 +23,9 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Plain native scrolling everywhere (finger, wheel, trackpad); each scene settles softly into place. */
+/* Native scrolling (finger, wheel, trackpad), and every scroll lands on one whole scene: never half of two. */
 html {
-  scroll-snap-type: y proximity;
+  scroll-snap-type: y mandatory;
 }
 
 #page {
@@ -41,6 +41,7 @@ html {
   overflow: hidden;
   background: var(--night);
   scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 
 .scene canvas {
@@ -743,20 +744,6 @@ canvas.carry {
   line-height: 1.6;
   color: rgba(243, 230, 207, 0.82);
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
-}
-
-/* A soft dark seam where one scene meets the next, instead of a black gap. */
-.scene + .scene::before,
-.scene + .end::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 9vh;
-  z-index: 2;
-  pointer-events: none;
-  background: linear-gradient(180deg, rgba(3, 2, 2, 0.75), transparent);
 }
 
 .end {
