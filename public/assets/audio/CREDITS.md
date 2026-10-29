@@ -9,3 +9,18 @@ All fireworks sounds are cut from public-domain field recordings on Wikimedia Co
 `launch` is the short whoosh from the Pixabay sound library (Pixabay Content License, free to use without attribution).
 
 Each was trimmed, gently filtered and loudness-matched with ffmpeg.
+
+## Ghost house (ভূত চতুর্দশী)
+
+From the Pixabay sound effects library (Pixabay Content License, free to use without attribution), cut, looped with a
+cross-fade and loudness-matched with ffmpeg:
+
+- `fan`, `fan-down`, `fan-up`: "large ceiling fan on off whirl, various speeds" (Pixabay 51229), one fan for all three
+- `powercut`: "Power Outage" (Pixabay 451574)
+- `tube`: "Faulty Fluorescent Light Starter & Hum" (Pixabay 61228)
+- `creepy`: "Horror Background Atmosphere 09" (Pixabay 219111)
+- `whisper-1`: "Ghost Whisper" (Pixabay 351569); `whisper-2`: "strange whispers" (Pixabay 415245); `breath`: "Horror Ghost Breath" (Pixabay 392363)
+- `howl`: "DOG HOWL" (Pixabay 352680), dulled and given a little space so it sounds far off
+- `crickets`: "Night atmosphere with crickets" (Pixabay 374652)
+
+The rocket whistles `whistle-1` to `whistle-3` are listed above with their source recordings.

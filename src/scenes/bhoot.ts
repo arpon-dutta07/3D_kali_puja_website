@@ -1,6 +1,7 @@
 import { gsap } from 'gsap';
 import { Color, Mesh, PlaneGeometry, Vector3, type ShaderMaterial, type Texture } from 'three';
 import { config } from '../config';
+import { sfx, soundButton, type LoopHandle } from '../audio/sfx';
 import { CameraRig } from '../gl/camera';
 import { LampField } from '../gl/lamps';
 import { litMaterial, lu } from '../gl/lit';
@@ -62,6 +63,19 @@ const SEEN = 1.7;
 const FLEE = 1.2;
 
 /**
+ * The house's sound, as levels of three loops: before the cut, the ceiling fan and a few crickets; in the power cut, a
+ * dark, breathing atmosphere and nothing else; once the power is back, the fan and the crickets of a calm night.
+ */
+type Mood = 'house' | 'cut' | 'calm';
+type Bed = 'fan' | 'creepy' | 'crickets';
+const BEDS: Bed[] = ['fan', 'creepy', 'crickets'];
+const MOODS: Record<Mood, Record<Bed, number>> = {
+  house: { fan: 0.55, creepy: 0, crickets: 0.22 },
+  cut: { fan: 0, creepy: 0.62, crickets: 0 },
+  calm: { fan: 0.45, creepy: 0, crickets: 0.5 },
+};
+
+/**
  * ভূত চতুর্দশী: a power cut in an old North Kolkata house, the whole house in view and holding still. Carry a prodip
  * from room to room; in each, someone is standing in the dark. Your light shows them, and once the room's lamp is
  * lit they are seen for a moment, named, and gone. Seven rooms, seven lamps, then the power comes back.
@@ -89,6 +103,13 @@ export class Bhoot implements Chapter {
   private skipBtn: HTMLButtonElement;
   private flood = 0;
   private tmp = new Vector3();
+  private mood: Mood = 'house';
+  private beds: Partial<Record<Bed, LoopHandle | null>> = {};
+  /** The fan stays quiet while its blades are still winding back up. */
+  private fanHeld = false;
+  private heard = false;
+  /** Seconds until the next whisper or howl somewhere in the dark house. */
+  private haunt = 7;
 
   constructor(readonly section: HTMLElement) {
     const canvas = section.querySelector('canvas')!;
@@ -100,6 +121,46 @@ export class Bhoot implements Chapter {
     this.counterEl = counter(this.overlay.root);
     this.skipBtn = cornerButton(this.overlay.root, config.copy.ui.skip, () => this.skip());
     this.skipBtn.hidden = true;
+    soundButton(this.overlay.root);
+    // The house is heard only while it is on screen.
+    new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          this.heard = e.isIntersecting;
+          this.applySound(this.heard ? 1.5 : 0.8);
+        }
+      },
+      { threshold: 0.5 },
+    ).observe(section);
+    // Sound may only start after a tap; a tap here wakes any loop that could not start before.
+    section.addEventListener('pointerup', () => this.applySound(1, true));
+  }
+
+  private bed(name: Bed): LoopHandle | null {
+    return (this.beds[name] ??= sfx.loop(name, { gain: 0 })) ?? null;
+  }
+
+  /** Bring every loop to its level for the current mood (silent when the house is off screen). */
+  private applySound(fade: number, onlyMissing = false): void {
+    for (const name of BEDS) {
+      let want = this.heard ? MOODS[this.mood][name] : 0;
+      if (name === 'fan' && this.fanHeld) want = 0;
+      if (onlyMissing && this.beds[name]) continue;
+      if (want <= 0 && !this.beds[name]) continue;
+      this.bed(name)?.gain(want, fade);
+    }
+  }
+
+  /** লোডশেডিং: the fan's hum cuts out, its blades run down, and the dark house comes in. */
+  private powerCut(): void {
+    this.mood = 'cut';
+    this.applySound(4);
+    this.beds.fan?.gain(0, 0.06);
+    if (!this.heard) return;
+    sfx.play('powercut', { gain: 0.9 });
+    sfx.play('fan-down', { gain: 0.8 });
+    sfx.play('howl', { gain: 0.45, pan: -0.6, delay: 3.8 });
+    this.haunt = 9;
   }
 
   private world(u: number, v: number, z = 0): Vector3 {
@@ -193,6 +254,7 @@ export class Bhoot implements Chapter {
     this.engaged = true;
     const c = config.copy.bhoot;
     this.overlay.say('start', c.start, 'top', 2.6);
+    this.powerCut();
     gsap.delayedCall(2.4, () => {
       if (this.finished) return;
       this.overlay.say('invite', isTouch() ? { bn: c.inviteTouch } : c.invite, 'top');
@@ -264,6 +326,18 @@ export class Bhoot implements Chapter {
   /** The tube lights blink, blink, then hold. */
   private powerBack(): void {
     this.stage.canvas.classList.remove('carry', 'hold');
+    // The tube light's starter ticks and catches, the fan winds back up, the night outside comes back.
+    this.mood = 'calm';
+    this.fanHeld = true;
+    this.applySound(2.5);
+    if (this.heard) {
+      sfx.play('tube', { gain: 0.85, delay: 0.35 });
+      sfx.play('fan-up', { gain: 0.8, delay: 0.9 });
+    }
+    gsap.delayedCall(12.5, () => {
+      this.fanHeld = false;
+      this.applySound(2.5);
+    });
     const tl = gsap.timeline({ delay: 0.4 });
     const blink = [0.0, 0.7, 0.0, 0.0, 0.9, 0.15, 1];
     const times = [0, 0.08, 0.16, 0.5, 0.58, 0.68, 0.9];
@@ -299,6 +373,15 @@ export class Bhoot implements Chapter {
 
     for (const g of this.ghosts) this.updateGhost(g, dt, time);
 
+    // In the dark, now and then: a whisper from another room, a dog howling down the lane.
+    if (this.mood === 'cut' && this.heard && !this.finished) {
+      this.haunt -= dt;
+      if (this.haunt <= 0) {
+        this.haunt = 9 + Math.random() * 9;
+        sfx.play(['whisper-1', 'whisper-2', 'breath', 'howl'], { gain: 0.28 + Math.random() * 0.14, pan: (Math.random() - 0.5) * 1.6 });
+      }
+    }
+
     // Tube light: a flat cool white over everything.
     lu(this.houseMat).uFlood.value.copy(TUBE).multiplyScalar(this.flood * 0.78);
     this.lamps.master = 1 - this.flood * 0.5;
@@ -329,6 +412,8 @@ export class Bhoot implements Chapter {
         g.t = 0;
         buzz([18, 40, 30]);
         g.label.classList.add('on');
+        // Caught: a breath, a whisper, from where it stands.
+        if (this.heard) sfx.play(['whisper-1', 'whisper-2', 'breath'], { gain: 0.75, pan: (g.home.x / (this.W / 2)) * 0.8 });
       }
     } else if (g.state === 'seen') {
       g.t += dt;
