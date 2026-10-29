@@ -23,10 +23,9 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-html.locked,
-html.locked body {
-  overflow: hidden;
-  height: 100%;
+/* Plain native scrolling everywhere (finger, wheel, trackpad); each scene settles softly into place. */
+html {
+  scroll-snap-type: y proximity;
 }
 
 #page {
@@ -41,6 +40,7 @@ html.locked body {
   height: 100dvh;
   overflow: hidden;
   background: var(--night);
+  scroll-snap-align: start;
 }
 
 .scene canvas {
@@ -49,18 +49,10 @@ html.locked body {
   width: 100%;
   height: 100%;
   display: block;
+  /* Vertical swipes scroll the page; taps and sideways sweeps belong to the scene. */
   touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
-}
-
-#intro canvas,
-.scene.engaged canvas {
-  touch-action: none;
-}
-
-html:not(.locked) #intro canvas {
-  touch-action: pan-y;
 }
 
 canvas.carry {
@@ -279,7 +271,7 @@ canvas.carry {
 
 .counter {
   position: absolute;
-  top: max(18px, env(safe-area-inset-top));
+  bottom: max(22px, calc(env(safe-area-inset-bottom) + 12px));
   left: 50%;
   translate: -50% 0;
   font-family: var(--bn);
@@ -394,11 +386,23 @@ canvas.carry {
 /* ---------- end ---------- */
 
 .end {
-  min-height: 70vh;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   text-align: center;
   padding: 14vh 24px 10vh;
+  scroll-snap-align: start;
+  background:
+    radial-gradient(70% 55% at 50% 45%, rgba(150, 30, 24, 0.22), transparent 70%),
+    var(--night);
+}
+
+.end .kicker {
+  margin: 0 0 16px;
+  font-size: 17px;
+  word-spacing: 0.35em;
+  color: var(--gold);
 }
 
 .end h2 {
@@ -465,4 +469,304 @@ canvas.carry {
 
 .scene canvas.trail {
   mix-blend-mode: screen;
+}
+
+/* ---------- the new-moon gate ---------- */
+
+.gate {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+  background: radial-gradient(75% 60% at 50% 42%, rgba(3, 2, 2, 0.15), rgba(3, 2, 2, 0.88) 78%);
+}
+
+.gate.on {
+  opacity: 1;
+}
+
+.gate.out {
+  opacity: 0;
+  transition-duration: 1.2s;
+}
+
+.gate .moon {
+  position: absolute;
+  left: 50%;
+  top: 43%;
+  width: min(84vmin, 620px);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  transition:
+    scale 1.6s cubic-bezier(0.2, 0.7, 0.2, 1),
+    opacity 1.2s ease;
+}
+
+.gate.out .moon {
+  scale: 1.35;
+  opacity: 0;
+}
+
+.gate .corona {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    #ff7a2e,
+    #e8b54a,
+    #8f1622,
+    #ffcf7a,
+    #c4122b,
+    #ff7a2e,
+    #6e0f16,
+    #e8b54a,
+    #ff7a2e
+  );
+  -webkit-mask: radial-gradient(circle, transparent 54%, #000 57.5%, #000 60%, transparent 71%);
+  mask: radial-gradient(circle, transparent 54%, #000 57.5%, #000 60%, transparent 71%);
+  filter: blur(9px);
+  opacity: 0.95;
+  animation: corona-spin 46s linear infinite;
+}
+
+.gate .corona.two {
+  inset: -6%;
+  filter: blur(26px);
+  opacity: 0.55;
+  animation-duration: 70s;
+  animation-direction: reverse;
+}
+
+.gate .disc {
+  position: absolute;
+  inset: 21.5%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 42%, #120808 0%, #050303 62%, #020101 100%);
+  box-shadow:
+    inset 0 0 50px rgba(0, 0, 0, 0.9),
+    0 0 60px 8px rgba(255, 120, 40, 0.12);
+}
+
+.gate .rim {
+  position: absolute;
+  inset: 21.2%;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1.2px rgba(255, 214, 150, 0.8),
+    0 0 18px 2px rgba(255, 170, 80, 0.45);
+  animation: rim-breathe 5s ease-in-out infinite;
+}
+
+@keyframes corona-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes rim-breathe {
+  50% {
+    box-shadow:
+      0 0 0 1.2px rgba(255, 224, 170, 0.95),
+      0 0 30px 5px rgba(255, 170, 80, 0.6);
+  }
+}
+
+.gate .gate-copy {
+  position: absolute;
+  left: 50%;
+  top: 43%;
+  translate: -50% -50%;
+  width: min(60vmin, 440px);
+  text-align: center;
+  transition:
+    opacity 0.9s ease,
+    translate 1.2s ease;
+}
+
+.gate.out .gate-copy {
+  opacity: 0;
+  translate: -50% calc(-50% - 12px);
+}
+
+.gate .kicker {
+  margin: 0 0 4px;
+  font-size: clamp(13px, 1.9vmin, 17px);
+  /* No letter-spacing on Bengali: it pulls the vowel signs off their letters. */
+  word-spacing: 0.35em;
+  color: rgba(232, 181, 74, 0.9);
+  white-space: nowrap;
+}
+
+.gate .title {
+  margin: 0;
+  font-family: var(--bn);
+  font-weight: 400;
+  font-size: clamp(54px, 11.5vmin, 120px);
+  line-height: 1.12;
+  background: linear-gradient(180deg, #fff0cf 0%, #f0c46a 45%, #c27b2e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 26px rgba(255, 150, 60, 0.35));
+}
+
+.gate .sub {
+  margin: 4px 0 0;
+  font-size: clamp(15px, 2.4vmin, 21px);
+  color: rgba(243, 230, 207, 0.78);
+}
+
+.gate .light-btn {
+  grid-row: 2;
+  pointer-events: auto;
+  margin-bottom: max(8vh, calc(env(safe-area-inset-bottom) + 36px));
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  column-gap: 10px;
+  row-gap: 0;
+  padding: 14px 30px 12px 22px;
+  max-width: 300px;
+  transition:
+    opacity 0.8s ease,
+    background 0.3s ease,
+    scale 0.2s ease;
+}
+
+.gate.out .light-btn {
+  opacity: 0;
+}
+
+.gate .light-btn svg {
+  width: 22px;
+  height: 30px;
+  filter: drop-shadow(0 0 8px rgba(255, 170, 70, 0.8));
+  animation: flame-flicker 2.4s ease-in-out infinite;
+}
+
+.gate .light-btn small {
+  flex-basis: 100%;
+  text-align: center;
+  margin-left: 32px;
+}
+
+@keyframes flame-flicker {
+  30% {
+    scale: 1 1.06;
+  }
+  60% {
+    scale: 0.97 1;
+  }
+}
+
+/* ---------- chapter titles, inside each scene ---------- */
+
+.chapter-title {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  text-align: center;
+  padding: 0 24px;
+}
+
+.chapter-title .veil {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(80% 70% at 50% 50%, rgba(3, 2, 2, 0.45), rgba(3, 2, 2, 0.9));
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+.chapter-title.on .veil {
+  opacity: 1;
+}
+
+.chapter-title.gone .veil {
+  opacity: 0;
+  transition-duration: 1.6s;
+}
+
+.chapter-title .inner {
+  position: relative;
+  max-width: 680px;
+  opacity: 0;
+  translate: 0 18px;
+  filter: blur(8px);
+  transition:
+    opacity 1.1s ease,
+    translate 1.3s ease,
+    filter 1.1s ease;
+}
+
+.chapter-title.on .inner {
+  opacity: 1;
+  translate: 0 0;
+  filter: blur(0);
+}
+
+.chapter-title.gone .inner {
+  opacity: 0;
+  translate: 0 -14px;
+  filter: blur(6px);
+}
+
+.chapter-title .num {
+  margin: 0 0 10px;
+  font-size: 18px;
+  color: var(--gold);
+}
+
+.chapter-title h2 {
+  margin: 0;
+  font-weight: 400;
+  font-size: clamp(54px, 10vw, 108px);
+  line-height: 1.12;
+  background: linear-gradient(180deg, #fff0cf 0%, #f0c46a 50%, #c27b2e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 24px rgba(255, 150, 60, 0.3));
+}
+
+.chapter-title .sub {
+  margin: 16px auto 0;
+  font-size: clamp(18px, 2.3vw, 24px);
+  line-height: 1.6;
+  color: rgba(243, 230, 207, 0.82);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
+}
+
+/* A soft dark seam where one scene meets the next, instead of a black gap. */
+.scene + .scene::before,
+.scene + .end::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 9vh;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(3, 2, 2, 0.75), transparent);
+}
+
+.end {
+  position: relative;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gate .corona,
+  .gate .rim,
+  .gate .light-btn svg {
+    animation: none;
+  }
 }
