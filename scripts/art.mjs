@@ -22,13 +22,26 @@ const ART = [
   { src: 'mala/thala', out: 'mala/thala.webp', max: 2048 },
   { src: 'mala/jaba', out: 'mala/jaba.webp', key: true, split: true, max: 512 },
   { src: 'bhoot/house', out: 'bhoot/house.webp', max: 2730 },
-  // Fourteen single ghosts (art/GHOSTS.md), one per lamp in the house, in lamp order.
-  ...Array.from({ length: 14 }, (_, i) => ({
+  // Seven single ghosts (art/ANTIGRAVITY-ROUND-2.md); each guards two of the fourteen lamps.
+  ...Array.from({ length: 7 }, (_, i) => ({
     src: `bhoot/ghost-${String(i + 1).padStart(2, '0')}`,
     out: `bhoot/ghost-${i + 1}.webp`,
     key: true,
     max: 640,
   })),
+  // Round 2: decoration beside Ma, the full thala, the wide house, the full rooftop pair.
+  { src: 'intro/decor-lamp-tree', out: 'intro/decor-lamp-tree.webp', key: true, max: 1280 },
+  { src: 'intro/decor-drape', out: 'intro/decor-drape.webp', key: true, max: 1800 },
+  { src: 'intro/decor-jaba-strands', out: 'intro/decor-jaba-strands.webp', key: true, max: 1800 },
+  { src: 'intro/decor-ghot', out: 'intro/decor-ghot.webp', key: true, keepGreens: true, max: 900 },
+  { src: 'intro/decor-dhak', out: 'intro/decor-dhak.webp', key: true, max: 900 },
+  { src: 'intro/decor-chandmala', out: 'intro/decor-chandmala.webp', key: true, max: 2048 },
+  { src: 'mala/thala-scene', out: 'mala/thala-scene.webp', max: 2048 },
+  { src: 'bhoot/house-wide', out: 'bhoot/house-wide.webp', max: 2752 },
+  { src: 'chhad/rooftop', out: 'chhad/rooftop.webp', max: 2752 },
+  { src: 'chhad/rooftop-lit', out: 'chhad/rooftop-lit.webp', max: 2752 },
+  { src: 'chhad/rooftop-tall', out: 'chhad/rooftop-tall.webp', max: 2752 },
+  { src: 'chhad/rooftop-tall-lit', out: 'chhad/rooftop-tall-lit.webp', max: 2752 },
   { src: 'chhad/city', out: 'chhad/city.webp', trim: false, max: 2560 },
   { src: 'chhad/city-lit', out: 'chhad/city-lit.webp', trim: false, max: 2560 },
   { src: 'chhad/parapet', out: 'chhad/parapet.webp', key: true, keepGreens: true, max: 2560 },

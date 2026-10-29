@@ -1,5 +1,8 @@
 # Image prompts
 
+> Round 2 (decoration beside Ma, the full thala, the wide house, 7 ghosts, the full rooftop) is in
+> [ANTIGRAVITY-ROUND-2.md](ANTIGRAVITY-ROUND-2.md).
+
 Generate each image, save it under `art/raw/` with exactly the file name shown (any of .png / .jpg / .webp is fine),
 then run `npm run art`. That keys out the green, trims, resizes and writes WebPs into `public/assets/`.
 Until a file exists the site uses a plain placeholder, so you can add them one at a time.
@@ -89,10 +92,10 @@ up through every floor. At the very bottom: a small courtyard with a tulsi manch
 tube lights on the walls, switched off. Every room evenly and softly lit so all detail is visible (the site darkens it
 in code). No people, no ghosts.
 
-### 10. Ghosts: replaced by [GHOSTS.md](GHOSTS.md)
+### 10. Ghosts: replaced by [ANTIGRAVITY-ROUND-2.md](ANTIGRAVITY-ROUND-2.md)
 
-The ghosts are now fourteen single images, one per lamp. Use [GHOSTS.md](GHOSTS.md). The old sheet prompt below is
-kept only for reference.
+The ghosts are now seven single images. Use [ANTIGRAVITY-ROUND-2.md](ANTIGRAVITY-ROUND-2.md). The old sheet prompt
+below is kept only for reference.
 
 #### (old) `bhoot/ghosts.png` (GREEN, landscape 3:2, 2048x1365)
 Six Bengali folk ghosts drawn as flat solid dark-indigo silhouettes with no inner detail except two small pale yellow
