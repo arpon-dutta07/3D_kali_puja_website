@@ -8,7 +8,7 @@ import { LampField } from '../gl/lamps';
 import { litMaterial, lu } from '../gl/lit';
 import * as ph from '../gl/placeholders';
 import { Stage } from '../gl/stage';
-import { artOr, aspectOf, loadSeries } from '../lib/assets';
+import { artOr, aspectOf, loadSeries, loadTexture } from '../lib/assets';
 import { buzz, damp, isTouch } from '../lib/device';
 import type { Chapter } from '../journey';
 import { cornerButton, Overlay } from '../ui/overlay';
@@ -24,6 +24,8 @@ interface Flower {
   /** 0 floating → 1 on the thread (animated). */
   t: number;
   from: Vector3;
+  /** Where on the rope it rides now (eases back as newer flowers come in front of it). */
+  idx: number;
 }
 
 interface Ripple {
@@ -59,6 +61,10 @@ export class Mala implements Chapter {
   private engaged = false;
   private finished = false;
   private pointer = { x: 0, y: 0, down: false, active: false, moved: 0 };
+  /** Where the needle is heading (it keeps gliding there after a tap). */
+  private target: Vector3 | null = null;
+  private glide = 0.04;
+  private flowerSize = 0.5;
   private ripples: Ripple[] = [];
   private wakeTimer = 0;
   private idle = 0;
@@ -95,7 +101,8 @@ export class Mala implements Chapter {
 
   async init(): Promise<void> {
     const S = this.stage;
-    const [thalaArt, maArt, bowlArt, stoneArt, shrineArt] = await Promise.all([
+    const [sceneTex, thalaArt, maArt, bowlArt, stoneArt, shrineArt] = await Promise.all([
+      loadTexture('mala/thala-scene.webp'),
       artOr('mala/thala.webp', ph.thala),
       artOr('intro/ma-mala.webp', () => ph.maStandIn(true)),
       artOr('common/prodip.webp', ph.prodipBowl),
@@ -111,12 +118,18 @@ export class Mala implements Chapter {
     const floor = new Mesh(new PlaneGeometry(40, 40), floorMat);
     floor.position.z = -0.02;
     this.thala.add(floor);
-    const thalaMat = litMaterial(S, thalaArt.tex, { ambient: 0.3, gain: 1.0, transparent: false });
+    // The full-bleed thala (round 2) is a much bigger picture with the thala small in its middle, so any screen can
+    // crop it; the first thala picture is the fallback.
+    const full = config.mala.scene;
+    if (sceneTex) this.T = 4 / (full.r / 0.31);
+    const thalaMat = litMaterial(S, sceneTex ?? thalaArt.tex, { ambient: 0.3, gain: 1.0, transparent: false });
     const thala = new Mesh(new PlaneGeometry(this.T, this.T), thalaMat);
     this.thala.add(thala);
-    // The water is about 76% of the picture's width (see the thala prompt).
-    // Measured on the generated thala: water centred at (0.505, 0.49) of the picture, radius 0.31 of its width.
-    if (thalaArt.real) {
+    if (sceneTex) {
+      this.R = this.T * full.r;
+      this.C.set((full.cx - 0.5) * this.T, (0.5 - full.cy) * this.T);
+    } else if (thalaArt.real) {
+      // Measured on the first generated thala: water centred at (0.505, 0.49), radius 0.31 of its width.
       this.R = this.T * 0.31;
       this.C.set(this.T * 0.005, this.T * 0.01);
     } else {
@@ -129,13 +142,15 @@ export class Mala implements Chapter {
     this.lampLight.color(0, config.palette.amber);
     this.lampLight.color(1, '#ffcf9a');
     // On the generated picture the lamp stands in the top-left corner.
-    if (thalaArt.real) this.lampLight.set(0, -this.T * 0.47, this.T * 0.42, 0.1, this.T * 1.9, 0.9);
+    if (sceneTex) this.lampLight.set(0, (full.lampU - 0.5) * this.T, (0.5 - full.lampV) * this.T, 0.1, this.R * 5.5, 0.9);
+    else if (thalaArt.real) this.lampLight.set(0, -this.T * 0.47, this.T * 0.42, 0.1, this.T * 1.9, 0.9);
     else this.lampLight.set(0, -this.T * 0.62, this.T * 0.05, 0.1, this.T * 1.7, 0.9);
-    this.lampLight.set(1, 0, 0, 0.1, this.T * 1.3, 0.18);
+    this.lampLight.set(1, this.C.x, this.C.y, 0.1, this.R * 4, 0.18);
     this.lampLight.commit();
 
     const n = config.mala.flowers;
-    const size = this.T * config.mala.flowerSize;
+    const size = this.R * config.mala.flowerSize * (4 / 1.24);
+    this.flowerSize = size;
     // Spread on the water like they were dropped in: random but never overlapping (seeded, same every visit).
     let seed = 11;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -154,12 +169,12 @@ export class Mala implements Chapter {
       mesh.position.set(home.x, home.y, 0.02 + i * 0.001);
       mesh.renderOrder = 10;
       this.thala.add(mesh);
-      this.flowers.push({ mesh, mat, home, angle: rnd() * 6.28, spin: (rnd() - 0.5) * 0.15, slot: -1, t: 0, from: new Vector3() });
+      this.flowers.push({ mesh, mat, home, angle: rnd() * 6.28, spin: (rnd() - 0.5) * 0.15, slot: -1, t: 0, from: new Vector3(), idx: 0 });
     }
 
     // Thread: rests coiled off the bottom-right of the thala, needle pointing in.
     const N = config.mala.ropeSegments;
-    this.seg = (this.T * 2.2) / N;
+    this.seg = (this.R * 7) / N;
     this.tip.set(this.C.x + this.R * 0.95, this.C.y - this.R * 0.95, 0.06);
     for (let k = 0; k < N; k++) {
       this.rope.push(new Vector3(this.tip.x + 0.25 + k * this.seg * 0.7, this.tip.y - 0.1 - Math.sin(k * 0.05) * 0.4, 0.06));
@@ -226,7 +241,7 @@ export class Mala implements Chapter {
     if (this.engaged || this.done) return;
     this.engaged = true;
     const i = config.copy.mala.invite;
-    this.overlay.say('invite', { bn: i.bn, en: isTouch() ? undefined : i.en }, 'top');
+    this.overlay.say('invite', isTouch() ? { bn: config.copy.mala.inviteTouch } : i, 'top');
     this.skipBtn.hidden = false;
     this.idle = 0;
     this.stage.canvas.classList.add('carry');
@@ -244,19 +259,27 @@ export class Mala implements Chapter {
       this.pointer.x = e.clientX - r.left;
       this.pointer.y = e.clientY - r.top;
     };
+    // A finger taps (the needle glides there) or sweeps sideways; vertical swipes stay with the page.
+    const aim = (e: PointerEvent) => {
+      this.target = this.stage.fromScreen(this.pointer.x, this.pointer.y, 0.06, new Vector3());
+      this.glide = e.pointerType === 'mouse' ? 0.04 : 0.1;
+    };
     el.addEventListener('pointerdown', (e) => {
       if (!this.engaged || this.finished) return;
       pos(e);
       this.pointer.down = true;
       this.pointer.active = true;
       this.assist?.kill();
-      this.stage.canvas.setPointerCapture?.(e.pointerId);
+      aim(e);
     });
     el.addEventListener('pointermove', (e) => {
       if (!this.engaged || this.finished) return;
       pos(e);
       if (e.pointerType === 'mouse') this.pointer.active = true;
-      if (this.pointer.active) this.pointer.moved += 1;
+      if (this.pointer.active) {
+        this.pointer.moved += 1;
+        aim(e);
+      }
     });
     const up = (e: PointerEvent) => {
       this.pointer.down = false;
@@ -270,8 +293,10 @@ export class Mala implements Chapter {
     if (f.slot >= 0) return;
     f.slot = this.next++;
     f.from.copy(f.mesh.position);
-    this.ripples.push({ x: f.mesh.position.x, y: f.mesh.position.y, age: 0, life: 1.6, size: this.T * 0.16 });
-    this.ripples.push({ x: f.mesh.position.x, y: f.mesh.position.y, age: -0.25, life: 1.6, size: this.T * 0.12 });
+    // The newest flower sits nearest the needle; the ones before it are pushed back along the thread.
+    f.idx = this.slotIndex(0);
+    this.ripples.push({ x: f.mesh.position.x, y: f.mesh.position.y, age: 0, life: 1.6, size: this.R * 0.52 });
+    this.ripples.push({ x: f.mesh.position.x, y: f.mesh.position.y, age: -0.25, life: 1.6, size: this.R * 0.39 });
     buzz(12);
     this.idle = 0;
     gsap.to(f, { t: 1, duration: quick ? 0.5 : 0.45, ease: 'power2.out', delay: quick ? f.slot * 0.08 : 0 });
@@ -312,22 +337,20 @@ export class Mala implements Chapter {
   }
 
   private update(dt: number, time: number): void {
-    const S = this.stage;
     // Needle tip: follows the pointer (or the assist) with a little lag, so it feels like a real needle in water.
     if (this.engaged && !this.finished) {
       this.idle += dt;
       if (this.idle > 6 && !this.pointer.active && !this.assist?.isActive()) this.runAssist();
-      if (this.pointer.active) {
-        const target = S.fromScreen(this.pointer.x, this.pointer.y, 0.06, this.tmp);
-        const k = damp(0.04, dt);
-        const dx = (target.x - this.tip.x) * k;
-        const dy = (target.y - this.tip.y) * k;
+      if (this.target && !this.assist?.isActive()) {
+        const k = damp(this.glide, dt);
+        const dx = (this.target.x - this.tip.x) * k;
+        const dy = (this.target.y - this.tip.y) * k;
         this.tip.x += dx;
         this.tip.y += dy;
         if (Math.hypot(dx, dy) > 0.002) this.dir.lerp(new Vector2(dx, dy).normalize(), 0.25).normalize();
       }
       // Pass through a flower to thread it.
-      const catchR = this.T * config.mala.flowerSize * 0.5 * config.mala.needleCatch;
+      const catchR = this.flowerSize * 0.5 * config.mala.needleCatch;
       for (const f of this.flowers) {
         if (f.slot >= 0) continue;
         if (Math.hypot(f.mesh.position.x - this.tip.x, f.mesh.position.y - this.tip.y) < catchR) this.thread(f);
@@ -336,12 +359,12 @@ export class Mala implements Chapter {
       this.wakeTimer -= dt;
       if (this.wakeTimer <= 0 && Math.hypot(this.tip.x - this.C.x, this.tip.y - this.C.y) < this.R && this.pointer.active) {
         this.wakeTimer = 0.16;
-        this.ripples.push({ x: this.tip.x, y: this.tip.y, age: 0, life: 0.9, size: this.T * 0.05 });
+        this.ripples.push({ x: this.tip.x, y: this.tip.y, age: 0, life: 0.9, size: this.R * 0.16 });
       }
     }
 
     // Rope: the eye of the needle leads, every segment follows the one before at a fixed length.
-    const needleLen = this.T * 0.075;
+    const needleLen = this.R * 0.24;
     const eye = this.rope[0]!;
     eye.set(this.tip.x - this.dir.x * needleLen, this.tip.y - this.dir.y * needleLen, 0.06);
     for (let k = 1; k < this.rope.length; k++) {
@@ -357,7 +380,7 @@ export class Mala implements Chapter {
     }
 
     // Flowers: drift on the water, or ride the thread.
-    const liftY = this.lift * this.lift * this.T * 1.6;
+    const liftY = this.lift * this.lift * this.R * 5.2;
     for (const [i, f] of this.flowers.entries()) {
       f.angle += f.spin * dt;
       if (f.slot < 0) {
@@ -367,9 +390,11 @@ export class Mala implements Chapter {
         f.mesh.rotation.z = f.angle;
         f.mesh.scale.setScalar(1 + Math.sin(time * 1.3 + i) * 0.015);
       } else {
-        const idx = Math.min(this.rope.length - 2, this.slotIndex(f.slot));
-        const p = this.rope[idx]!;
-        const q = this.rope[idx + 1]!;
+        f.idx += (this.slotIndex(this.next - 1 - f.slot) - f.idx) * damp(0.12, dt);
+        const fi = Math.min(this.rope.length - 2.001, f.idx);
+        const i0 = Math.floor(fi);
+        const p = this.tmp.copy(this.rope[i0]!).lerp(this.rope[i0 + 1]!, fi - i0);
+        const q = this.rope[Math.min(this.rope.length - 1, i0 + 2)]!;
         const ang = Math.atan2(q.y - p.y, q.x - p.x);
         const t = f.t;
         f.mesh.position.set(
@@ -393,7 +418,7 @@ export class Mala implements Chapter {
     const f = free[0]!;
     const from = this.tip.clone();
     const to = f.mesh.position.clone();
-    const over = to.clone().add(to.clone().sub(from).setLength(this.T * 0.08));
+    const over = to.clone().add(to.clone().sub(from).setLength(this.R * 0.26));
     this.assist = gsap.to(this.tip, {
       x: over.x,
       y: over.y,
@@ -405,6 +430,7 @@ export class Mala implements Chapter {
       },
       onComplete: () => {
         this.idle = 0;
+        this.target = null;
       },
     });
   }
