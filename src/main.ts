@@ -10,6 +10,7 @@ import { EndScene } from './scenes/end';
 import { share } from './ui/share';
 import { isDebug } from './lib/device';
 import { advance } from './gl/stage';
+import { music } from './audio/music';
 
 function webglOk(): boolean {
   try {
@@ -85,7 +86,16 @@ async function boot(): Promise<void> {
   const endScene = new EndScene(end);
   void endScene.init();
 
-  if (isDebug) (window as unknown as { __kali: unknown }).__kali = { intro, journey, advance, chapters: built, end: endScene };
+  // Each section's music follows whichever section is on screen.
+  const watch = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) if (e.isIntersecting) music.section(e.target.id);
+    },
+    { threshold: 0.55 },
+  );
+  for (const el of document.querySelectorAll<HTMLElement>('.scene')) watch.observe(el);
+
+  if (isDebug) (window as unknown as { __kali: unknown }).__kali = { intro, journey, advance, chapters: built, end: endScene, music };
   await intro.init();
 }
 

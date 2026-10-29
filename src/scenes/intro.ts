@@ -15,6 +15,7 @@ import {
   type Texture,
 } from 'three';
 import { config } from '../config';
+import { soundButton } from '../audio/sfx';
 import { CameraRig, fitShot, type Shot } from '../gl/camera';
 import { Glows } from '../gl/glows';
 import { LampField } from '../gl/lamps';
@@ -94,6 +95,7 @@ export class Intro {
     const canvas = section.querySelector('canvas')!;
     this.stage = new Stage(canvas, { fov: 42 });
     this.overlay = new Overlay(section);
+    soundButton(this.overlay.root);
     this.rig = new CameraRig(this.stage);
     this.counterEl = counter(this.overlay.root);
     this.skipBtn = cornerButton(this.overlay.root, config.copy.ui.skip, () => this.skip());

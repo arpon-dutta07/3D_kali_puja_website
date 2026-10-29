@@ -2,6 +2,7 @@ import { gsap } from 'gsap';
 import { createNoise2D } from 'simplex-noise';
 import { BoxGeometry, Color, Group, Mesh, PlaneGeometry, RepeatWrapping, Vector2, Vector3, type ShaderMaterial, type Texture } from 'three';
 import { config } from '../config';
+import { soundButton } from '../audio/sfx';
 import { CameraRig, fitShot, type Shot } from '../gl/camera';
 import { Glows } from '../gl/glows';
 import { LampField } from '../gl/lamps';
@@ -103,6 +104,7 @@ export class Mala implements Chapter {
     section.appendChild(this.canvas2d);
     this.ctx = this.canvas2d.getContext('2d')!;
     this.overlay = new Overlay(section);
+    soundButton(this.overlay.root);
     this.skipBtn = cornerButton(this.overlay.root, config.copy.ui.skip, () => this.skip());
     this.skipBtn.hidden = true;
     this.fade = document.createElement('div');

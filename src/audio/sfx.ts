@@ -2,16 +2,23 @@ import type { Fireworks } from '../gl/fireworks';
 import { assetUrl } from '../lib/assets';
 
 /**
- * Fireworks sounds: recorded booms, crackle and fizz (public-domain field recordings, public/assets/audio/CREDITS.md).
- * Web Audio, unlocked on the visitor's first tap. Each boom gets a little random pitch and is panned to where it burst,
- * and arrives a moment after the flash, the way it does in a real sky.
+ * Sound effects: recorded fireworks (booms, crackle, fizz, whistles) and the ghost house (fan, power cut, tube light,
+ * whispers, crickets); sources in public/assets/audio/CREDITS.md. Web Audio, unlocked on the visitor's first tap. Each
+ * boom gets a little random pitch and is panned to where it burst, and arrives a moment after the flash, the way it does
+ * in a real sky. The section music (src/audio/music.ts) plays through the same output, so one mute covers everything.
  */
-const FILES = ['boom-1', 'boom-2', 'boom-3', 'boom-4', 'boom-5', 'boom-6', 'crackle-1', 'crackle-2', 'fizz', 'launch', 'whistle-1', 'whistle-2', 'whistle-3'];
+const FILES = [
+  'boom-1', 'boom-2', 'boom-3', 'boom-4', 'boom-5', 'boom-6', 'crackle-1', 'crackle-2', 'fizz', 'launch', 'whistle-1', 'whistle-2', 'whistle-3',
+  'fan', 'fan-down', 'fan-up', 'powercut', 'tube', 'creepy', 'crickets', 'whisper-1', 'whisper-2', 'breath', 'howl',
+];
 const KEY = 'kali:sound';
 
 export interface LoopHandle {
   stop(fade?: number): void;
-  gain(v: number): void;
+  /** Move the level to `v` over about `seconds`. */
+  gain(v: number, seconds?: number): void;
+  /** Change speed (and pitch) over about `seconds`. */
+  rate(v: number, seconds?: number): void;
 }
 
 class Sfx {
@@ -28,10 +35,21 @@ class Sfx {
     } catch {
       /* Private mode: sound stays on. */
     }
-    // Browsers only allow sound after a tap; any tap anywhere on the page unlocks it.
+    // Browsers only allow sound after a tap; any tap anywhere on the page unlocks it. (On phones only the end of a touch
+    // counts as one, hence pointerup and click as well.)
     const unlock = () => this.unlock();
-    window.addEventListener('pointerdown', unlock, { passive: true });
-    window.addEventListener('keydown', unlock);
+    for (const ev of ['pointerdown', 'pointerup', 'click', 'keydown']) window.addEventListener(ev, unlock, { passive: true });
+    // Nothing plays in a background tab.
+    document.addEventListener('visibilitychange', () => {
+      if (!this.ctx) return;
+      if (document.hidden) void this.ctx.suspend();
+      else void this.ctx.resume();
+    });
+  }
+
+  /** The context and the master bus, once unlocked (the music plays through them). */
+  output(): { ctx: AudioContext; master: GainNode } | null {
+    return this.ctx && this.master ? { ctx: this.ctx, master: this.master } : null;
   }
 
   get on(): boolean {
@@ -68,7 +86,7 @@ class Sfx {
       this.master.gain.value = this._on ? 0.8 : 0;
       this.master.connect(comp).connect(this.ctx.destination);
     }
-    if (this.ctx.state === 'suspended') void this.ctx.resume();
+    if (this.ctx.state === 'suspended' && !document.hidden) void this.ctx.resume();
     this.loading ??= this.load();
   }
 
@@ -104,29 +122,51 @@ class Sfx {
     src.start(this.ctx.currentTime + (o.delay ?? 0));
   }
 
-  /** A looping sound (the tubri's and chorki's fizz). */
-  loop(name: string, o: { gain?: number; pan?: number; rate?: number } = {}): LoopHandle | null {
-    if (!this.ctx || !this.master || !this._on) return null;
-    const buf = this.buffers.get(name);
-    if (!buf) return null;
+  /**
+   * A looping sound (a tubri's fizz, the ghost house's fan and crickets). It exists even while muted, so un-muting brings
+   * it back, and if its file is still loading it starts as soon as it arrives.
+   */
+  loop(name: string, o: { gain?: number; pan?: number; rate?: number; fade?: number } = {}): LoopHandle | null {
+    if (!this.ctx || !this.master) return null;
     const ctx = this.ctx;
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.loop = true;
-    src.playbackRate.value = o.rate ?? 1;
     const g = ctx.createGain();
     g.gain.value = 0;
-    g.gain.setTargetAtTime(o.gain ?? 0.6, ctx.currentTime, 0.08);
     const p = ctx.createStereoPanner();
     p.pan.value = Math.max(-1, Math.min(1, o.pan ?? 0));
-    src.connect(g).connect(p).connect(this.master);
-    src.start();
+    g.connect(p).connect(this.master);
+    let src: AudioBufferSourceNode | null = null;
+    let stopped = false;
+    let rate = o.rate ?? 1;
+    let level = o.gain ?? 0.6;
+    const begin = () => {
+      const buf = this.buffers.get(name);
+      if (!buf || stopped || src) return;
+      src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      src.playbackRate.value = rate;
+      src.connect(g);
+      src.start();
+      g.gain.setTargetAtTime(level, ctx.currentTime, Math.max(0.02, (o.fade ?? 0.25) / 3));
+    };
+    if (this.buffers.has(name)) begin();
+    else void this.loading?.then(begin);
     return {
       stop: (fade = 0.4) => {
-        g.gain.setTargetAtTime(0, ctx.currentTime, fade / 3);
-        src.stop(ctx.currentTime + fade + 0.1);
+        stopped = true;
+        g.gain.cancelScheduledValues(ctx.currentTime);
+        g.gain.setTargetAtTime(0, ctx.currentTime, Math.max(0.01, fade / 3));
+        src?.stop(ctx.currentTime + fade + 0.1);
       },
-      gain: (v: number) => g.gain.setTargetAtTime(v, ctx.currentTime, 0.05),
+      gain: (v: number, seconds = 0.15) => {
+        level = v;
+        g.gain.cancelScheduledValues(ctx.currentTime);
+        g.gain.setTargetAtTime(v, ctx.currentTime, Math.max(0.01, seconds / 3));
+      },
+      rate: (v: number, seconds = 0.5) => {
+        rate = v;
+        src?.playbackRate.setTargetAtTime(v, ctx.currentTime, Math.max(0.01, seconds / 3));
+      },
     };
   }
 }
