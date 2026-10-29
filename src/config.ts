@@ -85,7 +85,7 @@ export const config = {
   },
 
   bhoot: {
-    lamps: 14,
+    lamps: 7,
     carryRadius: 0.95,
     catchRadius: 0.07,
   },
@@ -124,10 +124,12 @@ export const config = {
     },
     bhoot: {
       title: 'ভূত চতুর্দশী',
-      line: 'কালীপুজোর আগের রাত। চোদ্দটা প্রদীপ জ্বালাতে হয়, নইলে ওরা ঘুরে বেড়ায়।',
+      line: 'কালীপুজোর আগের রাত। সাতটা ঘর, সাতটা প্রদীপ। আর প্রতিটা ঘরে কেউ একজন আছে।',
       start: { bn: 'লোডশেডিং।', en: 'Power cut.' },
-      invite: { bn: 'প্রদীপ হাতে বাড়িটা ঘুরে দেখো। চোদ্দ জায়গায় চোদ্দটা।', en: 'Carry the lamp through the house. Fourteen corners.' },
-      inviteTouch: 'যেখানে ছোঁবে, হাতের প্রদীপ সেখানে যাবে। চোদ্দ জায়গায় চোদ্দটা।',
+      invite: { bn: 'প্রদীপ হাতে এক এক করে ঘরে ঢোকো। আলো পড়লেই দেখবে কে আছে।', en: 'Take the lamp into each room. The light shows who is there.' },
+      inviteTouch: 'যে ঘরে ছোঁবে, প্রদীপ সেখানে যাবে। আলো পড়লেই দেখবে কে আছে।',
+      /** In the order of bhoot/ghost-1..7. */
+      ghosts: ['শাঁকচুন্নি', 'পেত্নী', 'নিশি', 'ব্রহ্মদৈত্য', 'মেছোভূত', 'কানাভুলো', 'যখ'],
       done: { bn: 'কারেন্ট এসে গেছে!', en: 'The power is back.' },
     },
     chhad: {

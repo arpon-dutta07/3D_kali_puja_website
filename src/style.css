@@ -999,6 +999,34 @@ canvas.carry {
   touch-action: none;
 }
 
+/* The ghost's name, over its head while it is in the light. */
+.ghost-name {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -100%);
+  font-family: var(--bn);
+  font-size: clamp(18px, 2vw, 26px);
+  line-height: 1.5;
+  padding-top: 0.2em;
+  color: #ffe9d6;
+  text-shadow:
+    0 0 14px rgba(255, 50, 30, 0.7),
+    0 2px 10px rgba(0, 0, 0, 0.95);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  filter: blur(4px);
+  transition:
+    opacity 0.35s ease,
+    filter 0.35s ease;
+}
+
+.ghost-name.on {
+  opacity: 1;
+  filter: blur(0);
+}
+
 /* বাজি: six pieces now. */
 .baji-bar button.active {
   background: rgba(255, 170, 70, 0.22);

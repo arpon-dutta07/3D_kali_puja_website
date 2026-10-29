@@ -12,73 +12,59 @@ import type { Chapter } from '../journey';
 import { cornerButton, counter, Overlay } from '../ui/overlay';
 
 /**
- * Where the fourteen lamps go, in picture coordinates (0,0 top-left, 1,1 bottom-right) of bhoot/house.
- * Tuned for the layout the prompt asks for; with `?debug`, clicking the house logs the spot under the pointer.
+ * One room of the house: where its prodip stands (the middle of the floor) and who waits there. Picture coordinates,
+ * u from the left and v from the top; a ghost stands with its feet at `feet`, `size` is its height as a share of the
+ * picture's, `ghost` picks bhoot/ghost-N (0 = ghost-1). With `?debug`, clicking the house logs the spot under it.
  */
-const SPOTS: Array<[number, number]> = [
-  // Roof: by the potted plant, under the clothesline.
-  [0.17, 0.138], [0.6, 0.142],
-  // Top floor: side table, foot of the bed, the desk by the window.
-  [0.15, 0.308], [0.42, 0.338], [0.69, 0.292],
-  // Middle floor: the thakur ghor shelf, the radio, the stairs.
-  [0.21, 0.468], [0.51, 0.476], [0.85, 0.452],
-  // Ground floor: the stove, the dining table, the stairs.
-  [0.17, 0.648], [0.51, 0.668], [0.83, 0.694],
-  // Courtyard: tulsi mancha, the door step, by the well.
-  [0.47, 0.903], [0.63, 0.888], [0.2, 0.948],
+type Room = { lamp: [number, number]; ghost: number; u: number; feet: number; size: number };
+
+/** The wide house (bhoot/house-wide), for computer screens: four rooms upstairs, three down. */
+const WIDE: Room[] = [
+  { lamp: [0.2, 0.565], ghost: 1, u: 0.295, feet: 0.555, size: 0.3 }, // bedroom: পেত্নী by the almirah
+  { lamp: [0.405, 0.565], ghost: 3, u: 0.457, feet: 0.555, size: 0.3 }, // thakur ghor: ব্রহ্মদৈত্য
+  { lamp: [0.635, 0.565], ghost: 2, u: 0.555, feet: 0.555, size: 0.3 }, // the stairs: নিশি in the dark under them
+  { lamp: [0.8, 0.565], ghost: 0, u: 0.895, feet: 0.555, size: 0.3 }, // sitting room: শাঁকচুন্নি by the window
+  { lamp: [0.17, 0.925], ghost: 4, u: 0.265, feet: 0.915, size: 0.3 }, // kitchen: মেছোভূত
+  { lamp: [0.535, 0.925], ghost: 6, u: 0.4, feet: 0.915, size: 0.28 }, // courtyard: যখ by the well
+  { lamp: [0.8, 0.925], ghost: 5, u: 0.895, feet: 0.915, size: 0.3 }, // dining room: কানাভুলো
 ];
 
-/** Seven ghosts, each guarding two of the fourteen lamps; it leaves once both are lit. uv on the house picture. */
-type GhostSpec = { uv: [number, number]; spots: [number, number]; size: number };
-const GHOSTS: GhostSpec[] = [
-  { uv: [0.52, 0.09], spots: [0, 1], size: 0.08 }, // শাঁকচুন্নি among the drying saris
-  { uv: [0.25, 0.2], spots: [2, 3], size: 0.075 }, // পেত্নী on top of the almirah
-  { uv: [0.6, 0.25], spots: [4, 7], size: 0.08 }, // নিশি at the window
-  { uv: [0.4, 0.465], spots: [5, 6], size: 0.085 }, // ব্রহ্মদৈত্য beside the thakur ghor
-  { uv: [0.29, 0.63], spots: [8, 9], size: 0.075 }, // মেছোভূত in the kitchen
-  { uv: [0.75, 0.62], spots: [10, 12], size: 0.08 }, // কানাভুলো with his lantern on the stairs
-  { uv: [0.33, 0.85], spots: [11, 13], size: 0.07 }, // যখ on his pot of gold under the guava tree
+/** The tall house (bhoot/house), for phones: three floors of a room and a stairwell each, and the courtyard. */
+const TALL: Room[] = [
+  { lamp: [0.45, 0.35], ghost: 1, u: 0.22, feet: 0.345, size: 0.15 }, // bedroom: পেত্নী by the almirah
+  { lamp: [0.79, 0.352], ghost: 2, u: 0.875, feet: 0.34, size: 0.13 }, // top stairwell: নিশি
+  { lamp: [0.45, 0.537], ghost: 3, u: 0.22, feet: 0.532, size: 0.15 }, // sitting room by the thakur shelf: ব্রহ্মদৈত্য
+  { lamp: [0.79, 0.54], ghost: 0, u: 0.875, feet: 0.53, size: 0.13 }, // middle stairwell: শাঁকচুন্নি
+  { lamp: [0.45, 0.733], ghost: 4, u: 0.22, feet: 0.727, size: 0.15 }, // kitchen: মেছোভূত
+  { lamp: [0.79, 0.735], ghost: 5, u: 0.875, feet: 0.722, size: 0.13 }, // bottom stairwell: কানাভুলো
+  { lamp: [0.62, 0.93], ghost: 6, u: 0.3, feet: 0.92, size: 0.15 }, // courtyard: যখ
 ];
 
-/**
- * The wide house for computer screens (bhoot/house-wide). Its spots get measured once the picture exists; until then
- * computers use the tall house, filling the width and travelling up and down it.
- */
-const WIDE: { spots: Array<[number, number]>; ghosts: GhostSpec[] } | null = {
-  // Measured on bhoot/house-wide (u, v from the top-left).
-  spots: [
-    [0.22, 0.19], [0.79, 0.19], // roof: by the tank, under the clothesline
-    [0.12, 0.56], [0.3, 0.56], // bedroom: foot of the bed, by the almirah
-    [0.43, 0.555], [0.62, 0.555], // thakur ghor, top of the stairs
-    [0.8, 0.505], [0.93, 0.56], // sitting room: on the radio table, by the cane chair
-    [0.13, 0.82], [0.25, 0.86], // kitchen: the oven, the stool by the shelf
-    [0.4, 0.93], [0.51, 0.9], // foot of the stairs, by the well
-    [0.57, 0.93], [0.8, 0.815], // the tulsi mancha, on the dining table
-  ],
-  ghosts: [
-    { uv: [0.64, 0.115], spots: [0, 1], size: 0.2 }, // শাঁকচুন্নি on the roof, by the saris
-    { uv: [0.305, 0.3], spots: [2, 3], size: 0.17 }, // পেত্নী on top of the almirah
-    { uv: [0.945, 0.41], spots: [6, 7], size: 0.24 }, // নিশি at the sitting-room window
-    { uv: [0.535, 0.41], spots: [4, 5], size: 0.26 }, // ব্রহ্মদৈত্য by the thakur ghor and the stairs
-    { uv: [0.22, 0.79], spots: [8, 9], size: 0.21 }, // মেছোভূত in the kitchen
-    { uv: [0.455, 0.79], spots: [10, 11], size: 0.24 }, // কানাভুলো between the stairs and the well
-    { uv: [0.69, 0.86], spots: [12, 13], size: 0.17 }, // যখ on his pot of gold
-  ],
-};
+type GhostState = 'lurk' | 'seen' | 'flee' | 'gone';
 
 interface Ghost {
   mesh: Mesh;
   mat: ShaderMaterial;
   home: Vector3;
-  spots: [number, number];
-  push: number;
-  gone: number;
+  h: number;
+  room: number;
+  state: GhostState;
+  t: number;
+  near: number;
   phase: number;
+  /** Which way it runs: away from the room's lamp. */
+  dir: number;
+  label: HTMLElement;
 }
 
+/** How long a ghost stays in the light before it runs, and how long the running takes. */
+const SEEN = 1.7;
+const FLEE = 1.2;
+
 /**
- * ভূত চতুর্দশী: a power cut in an old North Kolkata house. Carry a prodip through the dark rooms, light the fourteen
- * lamps; the ghosts shrink from your light and leave when their corner is lit. Then the power comes back.
+ * ভূত চতুর্দশী: a power cut in an old North Kolkata house, the whole house in view and holding still. Carry a prodip
+ * from room to room; in each, someone is standing in the dark. Your light shows them, and once the room's lamp is
+ * lit they are seen for a moment, named, and gone. Seven rooms, seven lamps, then the power comes back.
  */
 export class Bhoot implements Chapter {
   readonly stage: Stage;
@@ -94,15 +80,11 @@ export class Bhoot implements Chapter {
   private ghosts: Ghost[] = [];
   private engaged = false;
   private finished = false;
-  private pointer = { x: 0, y: 0, active: false, seen: false };
+  private pointer = { x: 0, y: 0, active: false };
   private handPos = new Vector3();
   /** Where the hand lamp is heading (a tap sends it gliding there). */
   private target: Vector3 | null = null;
   private glide = 0.05;
-  private spotCount = SPOTS.length;
-  private camY = 0;
-  private camYTarget = 0;
-  private dist = 10;
   private counterEl: HTMLElement;
   private skipBtn: HTMLButtonElement;
   private flood = 0;
@@ -112,7 +94,8 @@ export class Bhoot implements Chapter {
     const canvas = section.querySelector('canvas')!;
     this.stage = new Stage(canvas, { fov: 40 });
     this.rig = new CameraRig(this.stage);
-    this.rig.sway = 0.12;
+    // The house holds still: no drift, nothing to chase.
+    this.rig.sway = 0;
     this.overlay = new Overlay(section);
     this.counterEl = counter(this.overlay.root);
     this.skipBtn = cornerButton(this.overlay.root, config.copy.ui.skip, () => this.skip());
@@ -130,16 +113,12 @@ export class Bhoot implements Chapter {
       artOr('common/prodip.webp', ph.prodipBowl),
       loadTexture('bhoot/house-wide.webp'),
     ]);
-    // Computers get the wide house once it exists and its spots are measured; phones keep the tall one.
-    const wide = wideTex && WIDE && S.aspect > 1 ? WIDE : null;
-    const spotsUv = wide ? wide.spots : SPOTS;
-    const ghostsUv = wide ? wide.ghosts : GHOSTS;
+    // Computers get the wide house, phones the tall one.
+    const wide = !!wideTex && S.aspect > 1;
+    const rooms = wide ? WIDE : TALL;
     const houseTex = wide && wideTex ? wideTex : houseArt.tex;
-    this.spotCount = spotsUv.length;
-    let ghostTex: Texture[] = await loadSeries('bhoot/ghost', ghostsUv.length);
-    // The drawn stand-ins are dark shapes with glowing eyes; the real ghosts are pale sheets with a faint glow.
-    const ghostGlow = ghostTex.length ? 0.55 : 1.6;
-    if (!ghostTex.length) ghostTex = ghostsUv.map((_, i) => ph.ghost(i));
+    let ghostTex: Texture[] = await loadSeries('bhoot/ghost', 7);
+    if (!ghostTex.length) ghostTex = rooms.map((_, i) => ph.ghost(i));
 
     this.W = this.H * aspectOf(houseTex);
     // A faint blue night through the windows; the rest is the lamps.
@@ -149,10 +128,9 @@ export class Bhoot implements Chapter {
 
     const bowlAspect = aspectOf(bowlArt.tex);
     const flame = bowlArt.real ? config.flames.prodip : config.flames.prodipPlaceholder;
-    // The wide house's rooms are bigger in the picture, so its lamps are too.
-    const size = this.H * (wide ? 0.042 : 0.024);
+    const size = this.H * (wide ? 0.05 : 0.03);
     // Each spot is where the lamp stands; lift the picture so its base sits there.
-    const spots = spotsUv.map(([u, v]) => this.world(u, v, 0.05).add(new Vector3(0, (size / bowlAspect) * 0.42, 0)));
+    const spots = rooms.map((r) => this.world(r.lamp[0], r.lamp[1], 0.05).add(new Vector3(0, (size / bowlAspect) * 0.42, 0)));
     this.lamps = new LampField(S, spots, size, {
       bowl: bowlArt.tex,
       bowlAspect,
@@ -164,55 +142,50 @@ export class Bhoot implements Chapter {
       ambient: 0.05,
     });
     this.lamps.onIgnite = () => this.onLit();
-    this.hand = new LampField(S, [new Vector3(0, 0, 0.12)], size * 1.25, {
+    this.hand = new LampField(S, [new Vector3(0, 0, 0.12)], size * 1.2, {
       bowl: bowlArt.tex,
       bowlAspect,
       ...flame,
-      light: 15,
-      lightAmp: 0.6,
+      light: 19,
+      lightAmp: 0.85,
       halo: 2.2,
       haloAmp: 0.25,
     });
     this.hand.setAll(true, true);
 
-    for (const [i, g] of ghostsUv.entries()) {
-      const tex = ghostTex[i % ghostTex.length]!;
-      const h = this.H * g.size;
-      const mat = litMaterial(S, tex, { ambient: 0.015, gain: 0.9, emissive: ghostGlow });
+    const names = config.copy.bhoot.ghosts;
+    for (const [i, r] of rooms.entries()) {
+      const tex = ghostTex[r.ghost % ghostTex.length]!;
+      const h = this.H * r.size;
+      // Lit only by light: in the dark room they are almost nothing; your lamp brings them out.
+      const mat = litMaterial(S, tex, { ambient: 0, gain: 1.05, emissive: 0.12 });
       const mesh = new Mesh(new PlaneGeometry(h * aspectOf(tex), h), mat);
-      const home = this.world(g.uv[0], g.uv[1], 0.03);
+      const home = this.world(r.u, r.feet, 0.03).add(new Vector3(0, h / 2, 0));
       mesh.position.copy(home);
       mesh.renderOrder = 8;
       S.scene.add(mesh);
-      this.ghosts.push({ mesh, mat, home, spots: g.spots, push: 0, gone: 0, phase: i * 1.7 });
+      const label = document.createElement('div');
+      label.className = 'ghost-name';
+      label.textContent = names[r.ghost] ?? '';
+      this.overlay.root.appendChild(label);
+      this.ghosts.push({ mesh, mat, home, h, room: i, state: 'lurk', t: 0, near: 0, phase: i * 1.7, dir: Math.sign(r.u - r.lamp[0]) || 1, label });
     }
 
-    this.handPos.copy(this.world(0.5, 0.5, 0.12));
+    this.handPos.copy(this.world(0.5, wide ? 0.42 : 0.45, 0.12));
     S.onResize(() => this.frame());
     S.onFrame((dt, time) => this.update(dt, time));
     this.bindInput();
-    this.camY = this.camYTarget = 0;
     this.frame();
   }
 
-  /** The house always fills the whole screen; where it is taller than the screen, the view travels with your lamp. */
+  /** The whole house on screen, always: nothing to scroll or pan to. */
   private frame(): void {
     const S = this.stage;
     const tan = Math.tan((S.camera.fov * Math.PI) / 360);
     const fitW = (this.W * 0.5) / (tan * S.aspect);
     const fitH = (this.H * 0.5) / tan;
-    this.dist = Math.min(fitW, fitH);
-    this.place();
-  }
-
-  private place(): void {
-    const S = this.stage;
-    const tan = Math.tan((S.camera.fov * Math.PI) / 360);
-    const halfView = this.dist * tan;
-    const maxY = Math.max(0, this.H / 2 - halfView);
-    this.camY = clamp(this.camY, -maxY, maxY);
-    this.camYTarget = clamp(this.camYTarget, -maxY, maxY);
-    this.rig.snap({ pos: new Vector3(0, this.camY, this.dist), target: new Vector3(0, this.camY, 0) });
+    const d = Math.max(fitW, fitH) * 1.01;
+    this.rig.snap({ pos: new Vector3(0, 0, d), target: new Vector3(0, 0, 0) });
   }
 
   engage(): void {
@@ -223,16 +196,17 @@ export class Bhoot implements Chapter {
     gsap.delayedCall(2.4, () => {
       if (this.finished) return;
       this.overlay.say('invite', isTouch() ? { bn: c.inviteTouch } : c.invite, 'top');
-      this.counterEl.textContent = `${bn(this.lamps.litCount)} / ${bn(this.spotCount)}`;
+      this.counterEl.textContent = `${bn(this.lamps.litCount)} / ${bn(this.lamps.count)}`;
       this.counterEl.classList.add('on');
     });
     this.skipBtn.hidden = false;
-    this.stage.canvas.classList.add('carry');
+    // While you play, a finger on the house moves the lamp instead of the page.
+    this.stage.canvas.classList.add('carry', 'hold');
   }
 
   skip(): void {
     if (this.finished) return;
-    for (let i = 0; i < this.lamps.count; i++) this.lamps.ignite(i, i * 0.06);
+    for (let i = 0; i < this.lamps.count; i++) this.lamps.ignite(i, i * 0.25);
   }
 
   private bindInput(): void {
@@ -241,18 +215,17 @@ export class Bhoot implements Chapter {
       const r = this.stage.canvas.getBoundingClientRect();
       this.pointer.x = e.clientX - r.left;
       this.pointer.y = e.clientY - r.top;
-      this.pointer.seen = true;
     };
-    // A tap sends the lamp gliding there; a mouse carries it. Vertical swipes still scroll the page.
+    // A tap sends the lamp gliding there; a mouse or a finger carries it.
     const aim = (e: PointerEvent) => {
       const w = this.stage.fromScreen(this.pointer.x, this.pointer.y, 0.12, new Vector3());
       w.x = clamp(w.x, -this.W / 2, this.W / 2);
       w.y = clamp(w.y, -this.H / 2, this.H / 2);
       this.target = w;
-      this.glide = e.pointerType === 'mouse' ? 0.05 : 0.14;
+      this.glide = e.pointerType === 'mouse' ? 0.05 : 0.1;
     };
     el.addEventListener('pointerdown', (e) => {
-      if (!this.engaged) return;
+      if (!this.engaged || this.finished) return;
       pos(e);
       this.pointer.active = true;
       aim(e);
@@ -262,7 +235,7 @@ export class Bhoot implements Chapter {
       }
     });
     el.addEventListener('pointermove', (e) => {
-      if (!this.engaged) return;
+      if (!this.engaged || this.finished) return;
       pos(e);
       if (e.pointerType === 'mouse') this.pointer.active = true;
       if (this.pointer.active) aim(e);
@@ -277,25 +250,25 @@ export class Bhoot implements Chapter {
   private onLit(): void {
     const n = this.lamps.litCount;
     this.overlay.hide('invite');
-    this.counterEl.textContent = `${bn(n)} / ${bn(this.spotCount)}`;
+    this.counterEl.textContent = `${bn(n)} / ${bn(this.lamps.count)}`;
     buzz(14);
-    if (n >= this.spotCount && !this.finished) this.powerBack();
+    if (n >= this.lamps.count && !this.finished) {
+      this.finished = true;
+      this.skipBtn.hidden = true;
+      this.counterEl.classList.remove('on');
+      // The last one gets its moment in the light before the power comes back.
+      gsap.delayedCall(SEEN + FLEE * 0.6, () => this.powerBack());
+    }
   }
 
-  /** The tube lights blink, blink, then hold; the ghosts are gone. */
+  /** The tube lights blink, blink, then hold. */
   private powerBack(): void {
-    this.finished = true;
-    this.skipBtn.hidden = true;
-    this.stage.canvas.classList.remove('carry');
-    this.counterEl.classList.remove('on');
-    const tl = gsap.timeline({ delay: 1.1 });
+    this.stage.canvas.classList.remove('carry', 'hold');
+    const tl = gsap.timeline({ delay: 0.4 });
     const blink = [0.0, 0.7, 0.0, 0.0, 0.9, 0.15, 1];
     const times = [0, 0.08, 0.16, 0.5, 0.58, 0.68, 0.9];
     blink.forEach((v, i) => tl.set(this, { flood: v }, times[i]));
-    tl.call(() => {
-      buzz([40, 50, 40]);
-      for (const g of this.ghosts) g.gone = 1;
-    }, [], 0.6);
+    tl.call(() => buzz([40, 50, 40]), [], 0.6);
     tl.call(() => this.overlay.say('done', config.copy.bhoot.done, 'bottom'), [], 1.3);
     tl.call(() => {
       this.done = true;
@@ -304,22 +277,15 @@ export class Bhoot implements Chapter {
   }
 
   private update(dt: number, time: number): void {
-    const S = this.stage;
     // The lamp in your hand.
-    if (this.engaged && !this.finished && this.target) {
+    if (this.engaged && this.target) {
       const k = damp(this.glide, dt);
       this.handPos.x += (this.target.x - this.handPos.x) * k;
       this.handPos.y += (this.target.y - this.handPos.y) * k;
     }
-    if (this.engaged && !this.finished && this.pointer.active && this.pointer.seen) {
-      // Near the top or bottom edge of the screen, the view follows.
-      const edge = S.height * 0.2;
-      if (this.pointer.y > S.height - edge) this.camYTarget -= ((this.pointer.y - (S.height - edge)) / edge) * dt * 3.2;
-      if (this.pointer.y < edge) this.camYTarget += ((edge - this.pointer.y) / edge) * dt * 3.2;
-    }
     const handLift = this.H * 0.012;
     this.hand.setPosition(0, this.tmp.set(this.handPos.x, this.handPos.y - handLift, 0.12));
-    this.hand.master = this.finished ? Math.max(0, 1 - this.flood) : 1;
+    this.hand.master = this.finished ? Math.max(0, 1 - this.flood) : this.engaged ? 1 : 0.85;
 
     // Bring the flame to an unlit lamp to light it.
     if (this.engaged && !this.finished) {
@@ -331,28 +297,82 @@ export class Bhoot implements Chapter {
       }
     }
 
-    this.camY += (this.camYTarget - this.camY) * damp(0.25, dt);
-    this.place();
-
-    // Ghosts: flinch from light, leave when their lamp is lit.
-    for (const g of this.ghosts) {
-      if (this.lamps.isLit(g.spots[0]) && this.lamps.isLit(g.spots[1])) g.gone = Math.min(1, g.gone + dt * 0.7);
-      const dx = g.home.x - this.handPos.x;
-      const dy = g.home.y - this.handPos.y;
-      const d = Math.hypot(dx, dy) || 1;
-      const near = clamp(1 - d / (this.H * 0.16), 0, 1);
-      g.push += (near - g.push) * damp(0.15, dt);
-      const away = g.push * this.H * 0.05 + g.gone * this.H * 0.12;
-      const bob = Math.sin(time * 1.6 + g.phase) * this.H * 0.004;
-      g.mesh.position.set(g.home.x + (dx / d) * away, g.home.y + (dy / d) * away * 0.4 + bob + g.gone * this.H * 0.05, 0.03);
-      g.mesh.rotation.z = Math.sin(time * 1.1 + g.phase) * 0.05;
-      lu(g.mat).uOpacity.value = (1 - g.gone) * (1 - g.push * 0.55);
-    }
+    for (const g of this.ghosts) this.updateGhost(g, dt, time);
 
     // Tube light: a flat cool white over everything.
     lu(this.houseMat).uFlood.value.copy(TUBE).multiplyScalar(this.flood * 0.78);
     this.lamps.master = 1 - this.flood * 0.5;
   }
+
+  /** In the dark: barely there. In your light: plain to see. Its lamp lit: seen, named, and gone. */
+  private updateGhost(g: Ghost, dt: number, time: number): void {
+    const u = lu(g.mat);
+    if (g.state === 'gone') return;
+    const dx = g.home.x - this.handPos.x;
+    const dy = g.home.y - this.handPos.y;
+    const near = clamp(1 - Math.hypot(dx, dy) / (this.H * 0.28), 0, 1);
+    g.near += (near - g.near) * damp(0.2, dt);
+    const bob = Math.sin(time * 1.4 + g.phase) * this.H * 0.004;
+    let x = g.home.x;
+    let y = g.home.y + bob;
+    let sx = 1;
+    let sy = 1;
+    let op = 1;
+    // How lit it is: your lamp brings it up as you come close; caught in its own room's light, it is plain to see.
+    let light = 0.02 + g.near * 0.5;
+
+    if (g.state === 'lurk') {
+      // A slow sway, leaning a little towards the light that is coming.
+      g.mesh.rotation.z = Math.sin(time * 0.9 + g.phase) * 0.03;
+      if (this.lamps.isLit(g.room)) {
+        g.state = 'seen';
+        g.t = 0;
+        buzz([18, 40, 30]);
+        g.label.classList.add('on');
+      }
+    } else if (g.state === 'seen') {
+      g.t += dt;
+      // Caught in the light: a start, a shudder, held there.
+      const k = Math.min(1, g.t / 0.3);
+      light = 0.02 + g.near * 0.5 + (1.15 - 0.02 - g.near * 0.5) * k;
+      const punch = Math.sin(Math.min(1, g.t / 0.4) * Math.PI) * 0.09;
+      sx = sy = 1 + punch;
+      x += Math.sin(g.t * 55) * this.H * 0.006 * Math.max(0, 1 - g.t / 0.7);
+      if (g.t >= SEEN) {
+        g.state = 'flee';
+        g.t = 0;
+        g.label.classList.remove('on');
+      }
+    } else {
+      g.t += dt;
+      // Away from the lamp, up and thin into the dark.
+      const k = Math.min(1, g.t / FLEE);
+      const e = k * k * (3 - 2 * k);
+      light = 1.15;
+      x += g.dir * e * this.H * 0.16;
+      y += e * this.H * 0.05;
+      sx = 1 - 0.35 * e;
+      sy = 1 + 0.12 * e;
+      op = 1 - e;
+      g.mesh.rotation.z = g.dir * e * 0.18;
+      if (k >= 1) {
+        g.state = 'gone';
+        g.mesh.visible = false;
+      }
+    }
+    g.mesh.position.set(x, y, 0.03);
+    g.mesh.scale.set(sx, sy, 1);
+    // A flat warm light (the picture's mid-tones never reach the emissive range); its eyes glow a little in the dark.
+    u.uFlood.value.copy(LAMPLIGHT).multiplyScalar(light);
+    u.uEmissive.value = 0.12 + light * 0.4;
+    u.uOpacity.value = op;
+    if (g.state === 'seen' || g.state === 'flee') {
+      // The name floats over its head.
+      const s = this.stage.toScreen(this.tmp.set(x, y + g.h * 0.55, 0.03));
+      g.label.style.translate = `${s.x}px ${s.y}px`;
+    }
+  }
 }
 
 const TUBE = new Color(config.palette.tube);
+const LAMPLIGHT = new Color(1, 0.86, 0.7);
