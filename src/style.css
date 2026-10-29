@@ -993,3 +993,33 @@ canvas.carry {
   margin-top: -0.24em;
   margin-bottom: -0.14em;
 }
+
+/* While a scene is being played with a finger (the ghost house, the sparkler), the finger belongs to the scene. */
+.scene canvas.hold {
+  touch-action: none;
+}
+
+/* বাজি: six pieces now. */
+.baji-bar button.active {
+  background: rgba(255, 170, 70, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(255, 190, 100, 0.55);
+}
+
+@media (max-width: 560px) {
+  .baji-bar {
+    width: calc(100vw - 16px);
+    gap: 2px;
+    padding: 5px;
+  }
+  .baji-bar button {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 8px 2px 7px;
+    font-size: 12.5px;
+    gap: 4px;
+  }
+  .baji-bar svg {
+    width: 25px;
+    height: 25px;
+  }
+}

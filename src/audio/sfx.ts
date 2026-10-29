@@ -6,7 +6,7 @@ import { assetUrl } from '../lib/assets';
  * Web Audio, unlocked on the visitor's first tap. Each boom gets a little random pitch and is panned to where it burst,
  * and arrives a moment after the flash, the way it does in a real sky.
  */
-const FILES = ['boom-1', 'boom-2', 'boom-3', 'boom-4', 'boom-5', 'boom-6', 'crackle-1', 'crackle-2', 'fizz', 'launch'];
+const FILES = ['boom-1', 'boom-2', 'boom-3', 'boom-4', 'boom-5', 'boom-6', 'crackle-1', 'crackle-2', 'fizz', 'launch', 'whistle-1', 'whistle-2', 'whistle-3'];
 const KEY = 'kali:sound';
 
 export interface LoopHandle {
@@ -150,6 +150,12 @@ export function soundFireworks(
     }
   };
   fw.onCrackle = (x) => sfx.play(['crackle-1', 'crackle-2'], { gain: 0.35 * volume, pan: pan(x) * 0.7, rate: 0.9 + Math.random() * 0.3 });
+  // হাউই: the whistle as it climbs, then a small, higher bang.
+  fw.onWhistle = (x) => sfx.play(['whistle-1', 'whistle-2', 'whistle-3'], { gain: 0.85 * volume, pan: pan(x) * 0.6, rate: 0.92 + Math.random() * 0.16 });
+  fw.onPop = (x) => {
+    sfx.play(BOOMS, { gain: 0.38 * volume, pan: pan(x) * 0.7, rate: 1.55 + Math.random() * 0.3, delay: 0.05 });
+    sfx.play(['crackle-1', 'crackle-2'], { gain: 0.45 * volume, pan: pan(x) * 0.7, delay: 0.25 });
+  };
 }
 
 /** A small round sound on/off button for the fireworks scenes. */

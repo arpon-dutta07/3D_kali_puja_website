@@ -144,7 +144,10 @@ export const config = {
       rocket: 'রকেট',
       tubri: 'তুবড়ি',
       chorki: 'চরকি',
+      torch: 'রংমশাল',
+      sparkler: 'ফুলঝুরি',
       skyshot: 'স্কাইশট',
+      sparklerHint: { bn: 'ফুলঝুরি হাতে। আঙুল টেনে আকাশে কিছু লিখে দেখো।', en: 'Move it to write in the sky' },
     },
     end: {
       kicker: 'কালীপুজো · দীপাবলি ২০২৬',

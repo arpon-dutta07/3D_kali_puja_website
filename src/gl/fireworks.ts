@@ -12,6 +12,7 @@ const PALETTE = ['#ff2a2a', '#ff7a1a', '#ffc84a', '#fff07a', '#3cff6a', '#3a8bff
 const GOLD = new Color('#ffbf5a');
 const WHITE = new Color('#fff6e8');
 const SKIN = new Color('#3d6bff');
+const EMBER = new Color('#ff7a2a');
 
 export function randomColor(): Color {
   return PALETTE[Math.floor(Math.random() * PALETTE.length)]!;
@@ -59,17 +60,34 @@ interface Rocket {
   form: FormPoint[] | null;
   /** Brightness of a formation's sparks: dense lettering needs less, or it burns white. */
   formHeat?: number;
+  /** A হাউই (stick rocket) flies on its own fire instead of being thrown. */
+  stick?: { burn: number; t: number; ang: number; wob: number; speed: number; top: number };
 }
 
 interface Emitter {
-  kind: 'fountain' | 'spinner';
+  kind: 'fountain' | 'spinner' | 'torch' | 'sparkler';
   x: number;
   y: number;
+  /** Where it was last frame (a sparkler swept quickly still leaves an unbroken line). */
+  lx: number;
+  ly: number;
   t: number;
   life: number;
   angle: number;
   color: Color;
+  /** Its own light (flash slots below EMIT_SLOTS belong to ground pieces, the rest to bursts). */
+  slot: number;
 }
+
+/** A sparkler in someone's hand: move it, or put it out. */
+export interface SparklerHandle {
+  move(x: number, y: number): void;
+  stop(): void;
+  readonly alive: boolean;
+}
+
+const EMIT_SLOTS = 6;
+const FLASH_SLOTS = 16;
 
 export interface FormPoint {
   x: number;
@@ -91,6 +109,9 @@ export class Fireworks {
   onLaunch: ((x: number) => void) | null = null;
   onBurst: ((shell: Shell, x: number, big: boolean) => void) | null = null;
   onCrackle: ((x: number) => void) | null = null;
+  /** A হাউই takes off (its whistle) and pops at the top. */
+  onWhistle: ((x: number) => void) | null = null;
+  onPop: ((x: number) => void) | null = null;
   private n: number;
   private next = 0;
   private px: Float32Array;
@@ -129,6 +150,8 @@ export class Fireworks {
   private halos: Glows;
   private flashAmp: Float32Array;
   private nextFlash = 0;
+  private nextEmit = 0;
+  private lastCrackle = -1;
   private time = 0;
   private tmpC = new Color();
 
@@ -184,10 +207,10 @@ export class Fireworks {
     this.points.frustumCulled = false;
     this.points.renderOrder = 70;
     stage.scene.add(this.points);
-    this.flashes = new Glows(10, stage.lightScene);
-    this.halos = new Glows(10, stage.scene, 3.5);
+    this.flashes = new Glows(FLASH_SLOTS, stage.lightScene);
+    this.halos = new Glows(FLASH_SLOTS, stage.scene, 3.5);
     this.halos.mesh.renderOrder = 69;
-    this.flashAmp = new Float32Array(10);
+    this.flashAmp = new Float32Array(FLASH_SLOTS);
     stage.onResize(() => {
       const h = stage.renderer.getDrawingBufferSize(new Vector2()).y;
       this.mat.uniforms.uScale!.value = h / (2 * Math.tan(MathUtils.degToRad(stage.camera.fov / 2)));
@@ -232,12 +255,48 @@ export class Fireworks {
   }
 
   private flash(x: number, y: number, color: Color, amp: number, size: number): void {
-    const k = this.nextFlash++ % this.flashAmp.length;
+    const k = EMIT_SLOTS + (this.nextFlash++ % (FLASH_SLOTS - EMIT_SLOTS));
     this.flashes.color(k, color);
     this.halos.color(k, color);
     this.flashes.set(k, x, y, this.z, size * 3.2, 0);
     this.halos.set(k, x, y, this.z, size * 1.4, 0);
     this.flashAmp[k] = amp;
+  }
+
+  /** How many to spawn this frame for `rate` per second (fractions carried by chance, so it reads the same at any fps). */
+  private count(rate: number, dt: number): number {
+    const v = rate * dt;
+    return Math.floor(v) + (Math.random() < v % 1 ? 1 : 0);
+  }
+
+  /** Crackle sounds, at most a dozen a second however many sparks pop. */
+  private crackleSound(x: number): void {
+    if (this.time - this.lastCrackle < 0.085) return;
+    this.lastCrackle = this.time;
+    this.onCrackle?.(x);
+  }
+
+  private emitter(kind: Emitter['kind'], x: number, y: number, seconds: number, color: Color): Emitter {
+    const e: Emitter = { kind, x, y, lx: x, ly: y, t: 0, life: seconds, angle: 0, color, slot: this.nextEmit++ % EMIT_SLOTS };
+    this.emitters.push(e);
+    return e;
+  }
+
+  /** A small bang with a handful of sparks: how a হাউই ends. */
+  private pop(x: number, y: number): void {
+    const u = this.u;
+    for (let i = 0; i < 40; i++) {
+      const th = Math.random() * Math.PI * 2;
+      const sp = (1 + Math.random() * 1.8) * u;
+      this.spawn(x, y, Math.cos(th) * sp, Math.sin(th) * sp, 0.3 + Math.random() * 0.45, 0.055 * u, Math.random() < 0.5 ? WHITE : GOLD, {
+        heat: 3,
+        drag: 2,
+        grav: 0.6,
+        crackle: Math.random() < 0.35 ? 0.12 + Math.random() * 0.25 : 0,
+      });
+    }
+    this.flash(x, y, GOLD, 0.7, 3 * u);
+    this.onPop?.(x);
   }
 
   // ---------- public API ----------
@@ -350,12 +409,54 @@ export class Fireworks {
 
   /** তুবড়ি: a fountain of gold and white sparks from the ground. */
   fountain(x: number, y: number, seconds = 6): void {
-    this.emitters.push({ kind: 'fountain', x, y, t: 0, life: seconds, angle: 0, color: GOLD });
+    this.emitter('fountain', x, y, seconds, GOLD);
   }
 
   /** চরকি: a ground spinner throwing coloured sparks as it turns. */
   spinner(x: number, y: number, seconds = 6): void {
-    this.emitters.push({ kind: 'spinner', x, y, t: 0, life: seconds, angle: 0, color: randomColor() });
+    this.emitter('spinner', x, y, seconds, randomColor());
+  }
+
+  /** রংমশাল: a coloured torch that burns with a big flame and washes everything around it in its colour. */
+  torch(x: number, y: number, color: Color, seconds = 8): void {
+    this.emitter('torch', x, y, seconds, color);
+  }
+
+  /** ফুলঝুরি: a sparkler that follows your hand; moving it writes in light. */
+  sparkler(x: number, y: number, seconds = 25): SparklerHandle {
+    const e = this.emitter('sparkler', x, y, seconds, GOLD);
+    return {
+      move: (nx: number, ny: number) => {
+        e.x = nx;
+        e.y = ny;
+      },
+      stop: () => {
+        e.life = Math.min(e.life, e.t + 0.5);
+      },
+      get alive() {
+        return e.t < e.life;
+      },
+    };
+  }
+
+  /**
+   * হাউই: a stick rocket. It whistles up on its own fire, wobbling a little, with a long spitting tail, and ends in a
+   * small pop instead of a shell. `height` is how far it climbs.
+   */
+  hawai(x0: number, height: number, tilt = 0): void {
+    const burn = 1.05 + Math.random() * 0.35;
+    this.rockets.push({
+      x: x0,
+      y: this.groundY + 0.05 * this.u,
+      vx: 0,
+      vy: 0,
+      ty: Infinity,
+      shell: 'peony',
+      colors: [GOLD, WHITE],
+      form: null,
+      stick: { burn, t: 0, ang: Math.PI / 2 + tilt, wob: Math.random() * 6.28, speed: 0, top: height / (burn - 0.12) },
+    });
+    this.onWhistle?.(x0);
   }
 
   get busy(): boolean {
@@ -371,6 +472,38 @@ export class Fireworks {
 
     // Rockets: a bright head with a falling tail of sparks.
     for (const r of this.rockets) {
+      if (r.stick) {
+        // A হাউই: thrust builds in a blink, then holds; a little corkscrew wobble; sparks spat out behind it.
+        const st = r.stick;
+        st.t += dt;
+        st.speed = Math.min(st.top, st.speed + st.top * 8 * dt);
+        const a = st.ang + Math.sin(st.t * 12 + st.wob) * 0.08;
+        r.vx = Math.cos(a) * st.speed;
+        r.vy = Math.sin(a) * st.speed;
+        r.x += r.vx * dt;
+        r.y += r.vy * dt;
+        const n = this.count(560, dt);
+        for (let k = 0; k < n; k++) {
+          const c = Math.random();
+          this.spawn(
+            r.x + (Math.random() - 0.5) * 0.03 * u,
+            r.y - Math.random() * r.vy * dt,
+            -r.vx * 0.1 + (Math.random() - 0.5) * 0.7 * u,
+            -r.vy * 0.1 + (Math.random() - 0.5) * 0.7 * u,
+            0.35 + Math.random() * 0.6,
+            0.05 * u * (0.7 + Math.random() * 0.6),
+            c < 0.3 ? WHITE : c < 0.6 ? EMBER : GOLD,
+            { heat: 2.6, drag: 1.4, grav: 0.55, crackle: Math.random() < 0.06 ? 0.2 + Math.random() * 0.3 : 0 },
+          );
+        }
+        // The white-hot head.
+        this.spawn(r.x, r.y, 0, 0, 0.045, 0.2 * u, WHITE, { heat: 3.4, drag: 0, grav: 0 });
+        if (st.t >= st.burn) {
+          this.pop(r.x, r.y);
+          r.vy = -999;
+        }
+        continue;
+      }
       r.x += r.vx * dt;
       r.y += r.vy * dt;
       r.vy -= g * dt;
@@ -389,34 +522,104 @@ export class Fireworks {
     for (const e of this.emitters) {
       e.t += dt;
       const fade = Math.min(1, e.t * 3, (e.life - e.t) * 1.5);
+      const k0 = e.slot;
       if (e.kind === 'fountain') {
-        const n = Math.round(240 * dt * fade);
+        // A real tubri throws its sparks two or three times a man's height in a plume that breathes, they open into
+        // a wide umbrella as they fall and glitter on the way down, and the base is a dense skirt of white sparks.
+        const breath = 0.82 + 0.18 * Math.sin(e.t * 6.3) * Math.sin(e.t * 2.1 + 1);
+        const n = this.count(440 * fade, dt);
         for (let k = 0; k < n; k++) {
-          // A real tubri throws its sparks two or three times a man's height, in a narrow plume that breathes.
-          const th = Math.PI / 2 + (Math.random() - 0.5) * 0.42;
-          const s = (4.6 + Math.random() * 2.6) * u * (0.8 + 0.2 * Math.sin(e.t * 7));
-          this.spawn(e.x, e.y, Math.cos(th) * s, Math.sin(th) * s, 1.1 + Math.random() * 0.8, 0.05 * u, Math.random() < 0.25 ? WHITE : GOLD, { heat: 2.8, drag: 0.6, grav: 1.1 });
+          const th = Math.PI / 2 + (Math.random() - 0.5) * 0.5;
+          const sp = (6.4 + Math.random() * 3.4) * u * breath;
+          this.spawn(e.x, e.y, Math.cos(th) * sp, Math.sin(th) * sp, 1.3 + Math.random() * 1.0, 0.05 * u, Math.random() < 0.25 ? WHITE : GOLD, {
+            heat: 2.8,
+            drag: 0.55,
+            grav: 1.05,
+            crackle: Math.random() < 0.3 ? 0.9 + Math.random() * 0.9 : 0,
+          });
         }
-        if (Math.random() < dt * 4) this.onCrackle?.(e.x);
-        this.flashAmp[0] = Math.max(this.flashAmp[0]!, 0.35 * fade);
-        this.flashes.set(0, e.x, e.y + 1.5 * u, this.z, 7 * u, 0);
-        this.flashes.color(0, GOLD);
+        const m = this.count(180 * fade, dt);
+        for (let k = 0; k < m; k++) {
+          const th = Math.PI / 2 + (Math.random() - 0.5) * 2.5;
+          const sp = (1.2 + Math.random() * 2.4) * u;
+          this.spawn(e.x, e.y + 0.02 * u, Math.cos(th) * sp, Math.sin(th) * sp, 0.25 + Math.random() * 0.35, 0.045 * u, Math.random() < 0.55 ? WHITE : GOLD, { heat: 3.4, drag: 2, grav: 0.8 });
+        }
+        if (Math.random() < dt * 5) this.crackleSound(e.x);
+        this.flashAmp[k0] = Math.max(this.flashAmp[k0]!, 0.6 * fade * breath);
+        this.flashes.set(k0, e.x, e.y + 1.8 * u, this.z, 10 * u, 0);
+        this.flashes.color(k0, GOLD);
+      } else if (e.kind === 'torch') {
+        // A রংমশাল: a big soft flame of its colour, sparks spitting off it, and its light over everything.
+        const flick = 0.85 + 0.15 * Math.sin(e.t * 23) * Math.sin(e.t * 7.7);
+        const n = this.count(300 * fade, dt);
+        for (let k = 0; k < n; k++) {
+          if (Math.random() < 0.62) {
+            const core = Math.random() < 0.22;
+            this.spawn(
+              e.x + (Math.random() - 0.5) * 0.1 * u,
+              e.y + Math.random() * 0.06 * u,
+              (Math.random() - 0.5) * 0.45 * u,
+              (0.7 + Math.random() * 1.3) * u,
+              0.3 + Math.random() * 0.45,
+              0.12 * u * (0.6 + Math.random() * 0.7),
+              core ? WHITE : e.color,
+              { heat: core ? 1.8 : 1.35, drag: 1.8, grav: -0.12 },
+            );
+          } else {
+            const th = Math.PI / 2 + (Math.random() - 0.5) * 2.2;
+            const sp = (1.5 + Math.random() * 2.4) * u;
+            this.tmpC.copy(e.color).lerp(WHITE, 0.45);
+            this.spawn(e.x, e.y + 0.1 * u, Math.cos(th) * sp, Math.sin(th) * sp, 0.5 + Math.random() * 0.6, 0.045 * u, this.tmpC, { heat: 2.6, drag: 1.2, grav: 1 });
+          }
+        }
+        if (Math.random() < dt * 3) this.crackleSound(e.x);
+        this.flashAmp[k0] = Math.max(this.flashAmp[k0]!, 0.85 * fade * flick);
+        this.flashes.set(k0, e.x, e.y + 0.8 * u, this.z, 18 * u, 0);
+        this.flashes.color(k0, e.color);
+      } else if (e.kind === 'sparkler') {
+        // A ফুলঝুরি: a white-hot bead throwing short forking sparks. Where it has been, embers hang for a moment, so a
+        // quick sweep draws a line of light.
+        const dist = Math.hypot(e.x - e.lx, e.y - e.ly);
+        const steps = Math.min(60, Math.max(1, Math.ceil(dist / (0.035 * u))));
+        for (let q = 1; q <= steps; q++) {
+          const f = q / steps;
+          this.spawn(e.lx + (e.x - e.lx) * f, e.ly + (e.y - e.ly) * f, 0, 0, 0.55 + Math.random() * 0.35, 0.05 * u, GOLD, { heat: 1.7 * fade, drag: 6, grav: 0.04 });
+        }
+        e.lx = e.x;
+        e.ly = e.y;
+        const n = this.count(420 * fade, dt);
+        for (let k = 0; k < n; k++) {
+          const th = Math.random() * Math.PI * 2;
+          const sp = (1.2 + Math.random() * 3.4) * u;
+          this.spawn(e.x, e.y, Math.cos(th) * sp, Math.sin(th) * sp, 0.07 + Math.random() * 0.22, 0.03 * u, Math.random() < 0.5 ? WHITE : GOLD, {
+            heat: 3.2,
+            drag: 3,
+            grav: 0.3,
+            crackle: Math.random() < 0.25 ? 0.04 + Math.random() * 0.1 : 0,
+          });
+        }
+        this.spawn(e.x, e.y, 0, 0, 0.05, 0.17 * u, WHITE, { heat: 3 * fade, drag: 0, grav: 0 });
+        if (Math.random() < dt * 6) this.crackleSound(e.x);
+        this.flashAmp[k0] = Math.max(this.flashAmp[k0]!, 0.5 * fade);
+        this.flashes.set(k0, e.x, e.y, this.z, 6 * u, 0);
+        this.flashes.color(k0, GOLD);
       } else {
         e.angle += dt * 13;
         if (Math.random() < dt * 0.6) e.color = randomColor();
-        const n = Math.round(200 * dt * fade);
+        const n = this.count(260 * fade, dt);
         for (let k = 0; k < n; k++) {
-          const a = e.angle + (k / n) * 0.6;
-          const rr = 0.18 * u;
+          const a = e.angle + (k / Math.max(1, n)) * 0.6;
+          const rr = 0.2 * u;
           const ox = Math.cos(a) * rr;
           const oy = Math.sin(a) * rr * 0.4;
-          const s = (1.6 + Math.random() * 1.2) * u;
+          const sp = (1.8 + Math.random() * 1.4) * u;
           // Thrown off along the tangent of the spin.
-          this.spawn(e.x + ox, e.y + oy + 0.05 * u, -Math.sin(a) * s, Math.cos(a) * s * 0.4 + 0.6 * u, 0.6 + Math.random() * 0.4, 0.05 * u, Math.random() < 0.3 ? WHITE : e.color, { heat: 3, drag: 1.4, grav: 0.9 });
+          this.spawn(e.x + ox, e.y + oy + 0.05 * u, -Math.sin(a) * sp, Math.cos(a) * sp * 0.4 + 0.6 * u, 0.6 + Math.random() * 0.45, 0.05 * u, Math.random() < 0.3 ? WHITE : e.color, { heat: 3, drag: 1.4, grav: 0.9 });
         }
-        this.flashAmp[1] = Math.max(this.flashAmp[1]!, 0.3 * fade);
-        this.flashes.set(1, e.x, e.y + 0.6 * u, this.z, 5 * u, 0);
-        this.flashes.color(1, e.color);
+        if (Math.random() < dt * 3) this.crackleSound(e.x);
+        this.flashAmp[k0] = Math.max(this.flashAmp[k0]!, 0.4 * fade);
+        this.flashes.set(k0, e.x, e.y + 0.6 * u, this.z, 6 * u, 0);
+        this.flashes.color(k0, e.color);
       }
     }
     this.emitters = this.emitters.filter((e) => e.t < e.life);
@@ -491,7 +694,7 @@ export class Fireworks {
             this.spawn(this.px[i]!, this.py[i]!, (Math.random() - 0.5) * 0.9 * u, (Math.random() - 0.5) * 0.9 * u, 0.12 + Math.random() * 0.1, this.size0[i]! * 1.3, WHITE, { heat: 4, drag: 4 });
           }
           this.life[i] = 0;
-          if (Math.random() < 0.08) this.onCrackle?.(this.px[i]!);
+          if (Math.random() < 0.08 && this.size0[i]! > 0.04 * u) this.crackleSound(this.px[i]!);
         }
       }
       this.aPos.setXYZ(i, this.px[i]!, this.py[i]!, this.z);
@@ -508,7 +711,7 @@ export class Fireworks {
       const a = this.flashAmp[k]!;
       this.flashes.amp(k, a);
       this.halos.amp(k, a * 0.35);
-      this.flashAmp[k] = Math.max(0, a - dt * (k < 2 ? 3 : 1.6));
+      this.flashAmp[k] = Math.max(0, a - dt * (k < EMIT_SLOTS ? 3 : 1.6));
     }
     this.flashes.commit();
     this.halos.commit();
