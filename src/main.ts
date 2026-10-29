@@ -18,15 +18,6 @@ function webglOk(): boolean {
   }
 }
 
-/** A chapter title card between scenes: number, name, one line. Fades in when it scrolls into view. */
-function card(num: string, title: string, line: string): HTMLElement {
-  const el = document.createElement('section');
-  el.className = 'card';
-  el.innerHTML = `<div class="inner"><p class="num">${num}</p><h2>${title}</h2><p class="sub">${line}</p></div>`;
-  new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && el.classList.add('in')), { threshold: 0.35 }).observe(el);
-  return el;
-}
-
 function sceneSection(id: string): HTMLElement {
   const el = document.createElement('section');
   el.id = id;
@@ -40,20 +31,13 @@ async function boot(): Promise<void> {
   const introEl = document.querySelector<HTMLElement>('#intro')!;
   if (!webglOk()) {
     introEl.innerHTML = `<div class="ov"><div class="line pos-center on"><p class="bn">${config.copy.intro.greeting}</p><p class="en">${config.copy.intro.greetingSub}</p></div></div>`;
-    document.documentElement.classList.remove('locked');
     return;
   }
 
   const journey = new Journey();
-  const intro = new Intro(introEl, () => {
-    journey.start(introEl);
-    intro.overlay.buttons('bless-btn', [
-      { label: config.copy.ui.share, onClick: () => void share(intro.stage) },
-      { label: config.copy.ui.again, onClick: () => intro.replay() },
-    ], 'bottom');
-  });
+  const intro = new Intro(introEl);
 
-  // Chapters are added below the opening in story order.
+  // Chapters follow the opening in story order; each one's title appears inside its own scene.
   const C = config.copy;
   const chapters: Array<{ id: string; title: string; line: string; make: (el: HTMLElement) => Chapter }> = [
     { id: 'mala', title: C.mala.title, line: C.mala.line, make: (el) => new Mala(el) },
@@ -63,19 +47,18 @@ async function boot(): Promise<void> {
   const numbers = ['এক', 'দুই', 'তিন', 'চার'];
   const built: Record<string, Chapter> = {};
   chapters.forEach((c, i) => {
-    page.appendChild(card(numbers[i] ?? '', c.title, c.line));
     const el = sceneSection(c.id);
     page.appendChild(el);
     const ch = c.make(el);
     built[c.id] = ch;
-    journey.add(ch);
+    journey.add(ch, { num: numbers[i] ?? '', title: c.title, line: c.line });
     void ch.init();
   });
 
   // The last screen: greeting, Share, Watch again.
   const end = document.createElement('footer');
   end.className = 'end';
-  end.innerHTML = `<div><h2>${C.chhad.finale}</h2><p>${C.chhad.finaleSub}</p><div class="buttons"></div><p class="credit">বানিয়েছে <a href="https://www.instagram.com/lyadkhor.coder/" target="_blank" rel="noopener">@lyadkhor.coder</a></p></div>`;
+  end.innerHTML = `<div><p class="kicker">${C.gate.kicker}</p><h2>${C.chhad.finale}</h2><p>${C.chhad.finaleSub}</p><div class="buttons"></div><p class="credit">বানিয়েছে <a href="https://www.instagram.com/lyadkhor.coder/" target="_blank" rel="noopener">@lyadkhor.coder</a></p></div>`;
   const row = end.querySelector<HTMLElement>('.buttons')!;
   const btn = (label: string, primary: boolean, onClick: () => void) => {
     const b = document.createElement('button');
@@ -88,7 +71,7 @@ async function boot(): Promise<void> {
   btn(C.ui.share, true, () => void share(intro.stage));
   btn(C.ui.again, false, () => {
     journey.toTop();
-    setTimeout(() => location.reload(), 1700);
+    setTimeout(() => location.reload(), 1200);
   });
   page.appendChild(end);
 

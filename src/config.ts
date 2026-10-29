@@ -48,16 +48,21 @@ export const config = {
     candlePlaceholder: { flameX: 0, flameLift: 0.5, flameSize: 0.9 },
   },
 
+  journey: {
+    /** How long a chapter's title holds over its scene before the scene begins. */
+    titleSeconds: 2.8,
+  },
+
   intro: {
     count: 108,
     /** Rows of steps. Portrait screens get more, narrower rows so a finger can sweep each one. */
     rowsLandscape: 6,
     rowsPortrait: 9,
-    widthLandscape: 9.6,
-    widthPortrait: 3.7,
+    widthLandscape: 14,
+    widthPortrait: 5.4,
     rise: 0.3,
-    tread: 0.85,
-    lampScale: 0.34,
+    tread: 1.05,
+    lampScale: 0.5,
     /** Catch radius as a fraction of the on-screen gap between two lamps. */
     catchFraction: 0.75,
     catchMinPx: 16,
@@ -74,6 +79,8 @@ export const config = {
     flowerSize: 0.12,
     needleCatch: 0.6,
     ropeSegments: 160,
+    /** The full-bleed thala picture: water centre and radius (fractions of its width), and where its lamp stands. */
+    scene: { cx: 0.5, cy: 0.5, r: 0.19, lampU: 0.3, lampV: 0.28 },
   },
 
   bhoot: {
@@ -83,14 +90,18 @@ export const config = {
   },
 
   chhad: {
-    candles: 12,
-    tubriSeconds: 5,
-    sparklerInk: 7,
+    /** চোদ্দ প্রদীপ, for the চোদ্দ পুরুষ. */
+    lamps: 14,
+    /** Ledge height in the full rooftop pictures, as a fraction from the top (measured on the art). */
+    ledgeWide: 0.64,
+    ledgeTall: 0.7,
+    rockets: 22,
   },
 
   copy: {
     title: 'কালীপুজো ২০২৬ · Kali Puja 2026',
     gate: {
+      kicker: 'কালীপুজো · দীপাবলি ২০২৬',
       title: 'অমাবস্যা',
       sub: 'কালীপুজোর রাত',
       button: { bn: 'প্রদীপ জ্বালাও', en: 'Light the lamp' },
@@ -100,18 +111,14 @@ export const config = {
       invite: { bn: 'শিখাটা নিয়ে প্রদীপগুলো ছুঁয়ে যাও', en: 'Carry the flame across the lamps' },
       inviteTouch: 'আঙুল ছুঁইয়ে টেনে নিয়ে যাও',
       midnight: { bn: 'রাত বারোটা।', en: 'Midnight.' },
-      verse: [
-        'জয়ন্তী মঙ্গলা কালী ভদ্রকালী কপালিনী।',
-        'দুর্গা শিবা ক্ষমা ধাত্রী স্বাহা স্বধা নমোঽস্তু তে॥',
-      ],
       greeting: 'শুভ কালীপুজো',
       greetingSub: 'শুভ দীপাবলি',
-      scrollCue: 'নিচে আরও আছে',
     },
     mala: {
       title: 'জবার মালা',
       line: 'মায়ের মালাটা এবার তুমি গাঁথো।',
       invite: { bn: 'সুঁচে সুতো পরানো আছে। ফুলগুলোর ভেতর দিয়ে টেনে নিয়ে যাও।', en: 'Pull the needle through the flowers' },
+      inviteTouch: 'সুঁচে সুতো পরানো আছে। ফুলগুলো এক এক করে ছুঁয়ে গাঁথো।',
       done: { bn: 'মালা মায়ের গলায়।', en: 'The garland is Ma’s now.' },
     },
     bhoot: {
@@ -119,15 +126,13 @@ export const config = {
       line: 'কালীপুজোর আগের রাত। চোদ্দটা প্রদীপ জ্বালাতে হয়, নইলে ওরা ঘুরে বেড়ায়।',
       start: { bn: 'লোডশেডিং।', en: 'Power cut.' },
       invite: { bn: 'প্রদীপ হাতে বাড়িটা ঘুরে দেখো। চোদ্দ জায়গায় চোদ্দটা।', en: 'Carry the lamp through the house. Fourteen corners.' },
+      inviteTouch: 'যেখানে ছোঁবে, হাতের প্রদীপ সেখানে যাবে। চোদ্দ জায়গায় চোদ্দটা।',
       done: { bn: 'কারেন্ট এসে গেছে!', en: 'The power is back.' },
     },
     chhad: {
       title: 'ছাদের দীপাবলি',
-      line: 'সন্ধে নেমেছে। পাঁচিলের মোমবাতিগুলো এখনও কেউ জ্বালায়নি।',
-      candles: { bn: 'পাঁচিল বরাবর মোমবাতি জ্বালাও', en: 'Light the candles along the parapet' },
-      lantern: { bn: 'আকাশপ্রদীপটা তোলো। দড়িটা নিচে টানো।', en: 'Raise the akash prodip: pull the rope down' },
-      tubri: { bn: 'তুবড়িতে আগুন দাও', en: 'Light the tubri' },
-      sparkler: { bn: 'এবার ফুলঝুরি। আকাশে যা খুশি লেখো।', en: 'Now the phuljhuri. Write anything on the sky.' },
+      line: 'চোদ্দ পুরুষের জন্য চোদ্দটা প্রদীপ। পাঁচিলে সাজানো আছে, এখনও কেউ জ্বালায়নি।',
+      lamps: { bn: 'পাঁচিল বরাবর আঙুল টেনে প্রদীপগুলো জ্বালাও', en: 'Sweep along the parapet to light the lamps' },
       finale: 'শুভ দীপাবলি',
       finaleSub: 'শুভ কালীপুজো',
     },
@@ -135,7 +140,6 @@ export const config = {
       skip: 'Skip',
       share: 'Share',
       again: 'Watch again',
-      next: 'নিচে চলো',
       shareText: 'অমাবস্যার রাতে ১০৮টা প্রদীপ জ্বালালাম। তুমিও জ্বালাও:',
     },
   },
