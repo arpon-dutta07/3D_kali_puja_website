@@ -80,7 +80,8 @@ export const config = {
     needleCatch: 0.6,
     ropeSegments: 160,
     /** The full-bleed thala picture: water centre and radius (fractions of its width), and where its lamp stands. */
-    scene: { cx: 0.5, cy: 0.5, r: 0.19, lampU: 0.3, lampV: 0.28 },
+    // Measured on mala/thala-scene: water centre (0.505, 0.5), radius 0.22 of the width; its prodip at (0.255, 0.27).
+    scene: { cx: 0.505, cy: 0.5, r: 0.22, lampU: 0.255, lampV: 0.27 },
   },
 
   bhoot: {
@@ -93,7 +94,7 @@ export const config = {
     /** চোদ্দ প্রদীপ, for the চোদ্দ পুরুষ. */
     lamps: 14,
     /** Ledge height in the full rooftop pictures, as a fraction from the top (measured on the art). */
-    ledgeWide: 0.64,
+    ledgeWide: 0.655,
     ledgeTall: 0.7,
     rockets: 22,
   },

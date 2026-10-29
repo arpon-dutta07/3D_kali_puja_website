@@ -308,9 +308,10 @@ export class Intro {
       side += w * 0.55;
     }
     if (chand) {
-      const w = Math.max(L.maW * 2.6, (side - 0.4) * 2);
+      // A swag above her crown, behind her so it never covers her face.
+      const w = L.maW * 2.3;
       const h = w / aspectOf(chand);
-      add(chand, h, 0, L.maBase + L.maH * 1.02, L.maZ + 0.25, false, false, 11);
+      add(chand, h, 0, L.maBase + L.maH * 0.93, L.maZ - 0.25, false, false, 8);
     }
     L.sideHalf = side;
   }

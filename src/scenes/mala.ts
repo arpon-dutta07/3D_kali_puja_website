@@ -65,6 +65,8 @@ export class Mala implements Chapter {
   private target: Vector3 | null = null;
   private glide = 0.04;
   private flowerSize = 0.5;
+  /** The full-bleed thala picture is in use: never show past its edges. */
+  private fullScene = false;
   private ripples: Ripple[] = [];
   private wakeTimer = 0;
   private idle = 0;
@@ -122,10 +124,11 @@ export class Mala implements Chapter {
     // crop it; the first thala picture is the fallback.
     const full = config.mala.scene;
     if (sceneTex) this.T = 4 / (full.r / 0.31);
-    const thalaMat = litMaterial(S, sceneTex ?? thalaArt.tex, { ambient: 0.3, gain: 1.0, transparent: false });
+    const thalaMat = litMaterial(S, sceneTex ?? thalaArt.tex, { ambient: sceneTex ? 0.42 : 0.3, gain: 1.0, transparent: false });
     const thala = new Mesh(new PlaneGeometry(this.T, this.T), thalaMat);
     this.thala.add(thala);
     if (sceneTex) {
+      this.fullScene = true;
       this.R = this.T * full.r;
       this.C.set((full.cx - 0.5) * this.T, (0.5 - full.cy) * this.T);
     } else if (thalaArt.real) {
@@ -172,10 +175,10 @@ export class Mala implements Chapter {
       this.flowers.push({ mesh, mat, home, angle: rnd() * 6.28, spin: (rnd() - 0.5) * 0.15, slot: -1, t: 0, from: new Vector3(), idx: 0 });
     }
 
-    // Thread: rests coiled off the bottom-right of the thala, needle pointing in.
+    // Thread: the needle rests on the rim below the water (inside the view on phones too), the thread trailing off.
     const N = config.mala.ropeSegments;
     this.seg = (this.R * 7) / N;
-    this.tip.set(this.C.x + this.R * 0.95, this.C.y - this.R * 0.95, 0.06);
+    this.tip.set(this.C.x + this.R * 0.5, this.C.y - this.R * 1.08, 0.06);
     for (let k = 0; k < N; k++) {
       this.rope.push(new Vector3(this.tip.x + 0.25 + k * this.seg * 0.7, this.tip.y - 0.1 - Math.sin(k * 0.05) * 0.4, 0.06));
     }
@@ -222,6 +225,13 @@ export class Mala implements Chapter {
       new Vector3(0, 0, 1),
       { x: 0.94, y: 0.78 },
     );
+    if (this.fullScene) {
+      // Keep the view inside the picture: on a phone the water nearly fills the width, on a computer the height.
+      const tan = Math.tan((S.camera.fov * Math.PI) / 360);
+      const dMax = Math.min((this.T * 0.97) / (2 * tan * S.aspect), (this.T * 0.97) / (2 * tan));
+      const t = this.shots.thala;
+      if (t.pos.distanceTo(t.target) > dMax) t.pos.copy(t.target).add(new Vector3(0, 0, dMax));
+    }
     const mx = 40;
     this.shots.ma = fitShot(
       S,

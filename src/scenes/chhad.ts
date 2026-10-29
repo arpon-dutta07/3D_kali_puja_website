@@ -191,7 +191,8 @@ export class Chhad implements Chapter {
     const n = this.lamps.count;
     const span = w * (S.aspect < 1 ? 0.94 : 0.8);
     const gap = span / n;
-    const size = clamp(gap * 0.78, 0.18, 0.62);
+    // On a phone the fourteen sit almost shoulder to shoulder so each stays big enough to see and to touch.
+    const size = clamp(gap * (S.aspect < 1 ? 0.9 : 0.62), 0.18, 0.5);
     for (let i = 0; i < n; i++) {
       const x = -span / 2 + gap * (i + 0.5);
       this.lamps.setSize(i, size);
@@ -283,9 +284,11 @@ export class Chhad implements Chapter {
     this.stage.canvas.classList.remove('carry');
     this.pointer.active = false;
     const tl = gsap.timeline();
-    tl.to(lu(this.bgMat).uMix, { value: 1, duration: 5.5, ease: 'power1.inOut' }, 0.3);
-    tl.to(lu(this.bgMat).uAmbient.value, { r: 0.78, g: 0.74, b: 0.72, duration: 4 }, 0.3);
-    tl.to(this.stage, { bloomBoost: 0.35, duration: 2 }, 0.4);
+    // The Diwali-night photo is very bright; stop a little short of it and keep the sky dark enough for the bursts.
+    tl.to(lu(this.bgMat).uMix, { value: this.full ? 0.8 : 1, duration: 5.5, ease: 'power1.inOut' }, 0.3);
+    if (this.full) tl.to(lu(this.bgMat).uAmbient.value, { r: 0.5, g: 0.5, b: 0.54, duration: 4 }, 0.3);
+    else tl.to(lu(this.bgMat).uAmbient.value, { r: 0.78, g: 0.74, b: 0.72, duration: 4 }, 0.3);
+    tl.to(this.stage, { bloomBoost: this.full ? 0.1 : 0.35, duration: 2 }, 0.4);
     const kinds: Burst[] = ['peony', 'willow', 'ring', 'crackle'];
     const total = config.chhad.rockets;
     for (let i = 0; i < total; i++) {

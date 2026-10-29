@@ -34,17 +34,37 @@ const GHOSTS: GhostSpec[] = [
   { uv: [0.52, 0.09], spots: [0, 1], size: 0.08 }, // শাঁকচুন্নি among the drying saris
   { uv: [0.25, 0.2], spots: [2, 3], size: 0.075 }, // পেত্নী on top of the almirah
   { uv: [0.6, 0.25], spots: [4, 7], size: 0.08 }, // নিশি at the window
-  { uv: [0.4, 0.47], spots: [5, 6], size: 0.075 }, // চোরাচুন্নি in the sitting room
+  { uv: [0.4, 0.465], spots: [5, 6], size: 0.085 }, // ব্রহ্মদৈত্য beside the thakur ghor
   { uv: [0.29, 0.63], spots: [8, 9], size: 0.075 }, // মেছোভূত in the kitchen
-  { uv: [0.75, 0.62], spots: [10, 12], size: 0.085 }, // স্কন্ধকাটা on the stairs
-  { uv: [0.35, 0.8], spots: [11, 13], size: 0.085 }, // গেছোভূত from the guava branch
+  { uv: [0.75, 0.62], spots: [10, 12], size: 0.08 }, // কানাভুলো with his lantern on the stairs
+  { uv: [0.33, 0.85], spots: [11, 13], size: 0.07 }, // যখ on his pot of gold under the guava tree
 ];
 
 /**
  * The wide house for computer screens (bhoot/house-wide). Its spots get measured once the picture exists; until then
  * computers use the tall house, filling the width and travelling up and down it.
  */
-const WIDE: { spots: Array<[number, number]>; ghosts: GhostSpec[] } | null = null;
+const WIDE: { spots: Array<[number, number]>; ghosts: GhostSpec[] } | null = {
+  // Measured on bhoot/house-wide (u, v from the top-left).
+  spots: [
+    [0.22, 0.19], [0.79, 0.19], // roof: by the tank, under the clothesline
+    [0.12, 0.56], [0.3, 0.56], // bedroom: foot of the bed, by the almirah
+    [0.43, 0.555], [0.62, 0.555], // thakur ghor, top of the stairs
+    [0.8, 0.505], [0.93, 0.56], // sitting room: on the radio table, by the cane chair
+    [0.13, 0.82], [0.25, 0.86], // kitchen: the oven, the stool by the shelf
+    [0.4, 0.93], [0.51, 0.9], // foot of the stairs, by the well
+    [0.57, 0.93], [0.8, 0.815], // the tulsi mancha, on the dining table
+  ],
+  ghosts: [
+    { uv: [0.64, 0.115], spots: [0, 1], size: 0.2 }, // শাঁকচুন্নি on the roof, by the saris
+    { uv: [0.305, 0.3], spots: [2, 3], size: 0.17 }, // পেত্নী on top of the almirah
+    { uv: [0.945, 0.41], spots: [6, 7], size: 0.24 }, // নিশি at the sitting-room window
+    { uv: [0.535, 0.41], spots: [4, 5], size: 0.26 }, // ব্রহ্মদৈত্য by the thakur ghor and the stairs
+    { uv: [0.22, 0.79], spots: [8, 9], size: 0.21 }, // মেছোভূত in the kitchen
+    { uv: [0.455, 0.79], spots: [10, 11], size: 0.24 }, // কানাভুলো between the stairs and the well
+    { uv: [0.69, 0.86], spots: [12, 13], size: 0.17 }, // যখ on his pot of gold
+  ],
+};
 
 interface Ghost {
   mesh: Mesh;
@@ -118,7 +138,7 @@ export class Bhoot implements Chapter {
     this.spotCount = spotsUv.length;
     let ghostTex: Texture[] = await loadSeries('bhoot/ghost', ghostsUv.length);
     // The drawn stand-ins are dark shapes with glowing eyes; the real ghosts are pale sheets with a faint glow.
-    const ghostGlow = ghostTex.length ? 0.12 : 1.6;
+    const ghostGlow = ghostTex.length ? 0.55 : 1.6;
     if (!ghostTex.length) ghostTex = ghostsUv.map((_, i) => ph.ghost(i));
 
     this.W = this.H * aspectOf(houseTex);
@@ -129,7 +149,8 @@ export class Bhoot implements Chapter {
 
     const bowlAspect = aspectOf(bowlArt.tex);
     const flame = bowlArt.real ? config.flames.prodip : config.flames.prodipPlaceholder;
-    const size = this.H * 0.024;
+    // The wide house's rooms are bigger in the picture, so its lamps are too.
+    const size = this.H * (wide ? 0.042 : 0.024);
     // Each spot is where the lamp stands; lift the picture so its base sits there.
     const spots = spotsUv.map(([u, v]) => this.world(u, v, 0.05).add(new Vector3(0, (size / bowlAspect) * 0.42, 0)));
     this.lamps = new LampField(S, spots, size, {
