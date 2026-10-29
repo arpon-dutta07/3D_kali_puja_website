@@ -1,37 +1,55 @@
 import { gsap } from 'gsap';
-import { Color, Mesh, PlaneGeometry, Vector3, type ShaderMaterial, type Texture } from 'three';
+import { Color, Mesh, PlaneGeometry, ShaderMaterial, Vector3, Vector4, type Texture } from 'three';
 import { config } from '../config';
+import { sfx, soundButton, soundFireworks } from '../audio/sfx';
 import { CameraRig } from '../gl/camera';
-import { Glows } from '../gl/glows';
+import { Fireworks, SHELLS, imagePoints, textPoints, type FormPoint } from '../gl/fireworks';
 import { LampField } from '../gl/lamps';
 import { litMaterial, lu } from '../gl/lit';
 import * as ph from '../gl/placeholders';
-import { Sparks } from '../gl/sparks';
 import { Stage } from '../gl/stage';
-import { artOr, aspectOf, loadTexture } from '../lib/assets';
+import { artOr, aspectOf, assetUrl, loadTexture } from '../lib/assets';
 import { bn, buzz, clamp, damp, isTouch } from '../lib/device';
 import type { Chapter } from '../journey';
 import { cornerButton, counter, Overlay } from '../ui/overlay';
 
-type Step = 'idle' | 'lamps' | 'finale' | 'done';
-type Burst = 'peony' | 'willow' | 'ring' | 'crackle';
+/** The finale's words burn amber, a shade deeper than the shells' gold so bloom does not wash them white. */
+const AMBER = new Color('#ff9d3a');
 
-const COLORS = ['#ffd27a', '#ff6a3a', '#ff4f9a', '#9affc0', '#ffffff', '#ffb347', '#b48cff', '#ff3b3b'].map((c) => new Color(c));
-const GOLD = new Color('#ffd9a0');
-const WHITE = new Color('#fff6e8');
+/** Ma's face in intro/ma.webp (u from the left, v from the top), for the vision in the sky. */
+const FACE = { u0: 0.36, v0: 0.04, u1: 0.64, v1: 0.33 };
 
-interface Rocket {
-  x: number;
-  y: number;
-  vy: number;
-  top: number;
-  color: Color;
-  kind: Burst;
+/** The vision: Ma's face from the murti, glowing, with soft edges that melt into the night. */
+function visionMaterial(map: Texture): ShaderMaterial {
+  return new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: {
+      map: { value: map },
+      uCrop: { value: new Vector4(FACE.u0, FACE.v0, FACE.u1, FACE.v1) },
+      uOpacity: { value: 0 },
+      uGain: { value: 1.45 },
+    },
+    vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `
+      uniform sampler2D map; uniform vec4 uCrop; uniform float uOpacity; uniform float uGain;
+      varying vec2 vUv;
+      void main() {
+        vec2 uv = vec2(mix(uCrop.x, uCrop.z, vUv.x), mix(1.0 - uCrop.w, 1.0 - uCrop.y, vUv.y));
+        vec4 c = texture2D(map, uv);
+        vec2 q = (vUv - 0.5) * 2.0;
+        float mask = (1.0 - smoothstep(0.6, 1.0, length(q * vec2(1.0, 0.92)))) * smoothstep(0.0, 0.3, vUv.y);
+        gl_FragColor = vec4(c.rgb * uGain, c.a * mask * uOpacity);
+      }`,
+  });
 }
+
+type Step = 'idle' | 'lamps' | 'finale' | 'done';
 
 /**
  * ছাদের দীপাবলি: an old North Kolkata rooftop at dusk. Fourteen prodips stand on the parapet, the চোদ্দ প্রদীপ for the
- * চোদ্দ পুরুষ; sweep along the ledge to light them. Then the city's Diwali lights come on and the sky goes up.
+ * চোদ্দ পুরুষ; sweep along the ledge to light them. Then night falls, the fireworks write শুভ দীপাবলি across the sky,
+ * and Ma's face blooms out of the sparks.
  */
 export class Chhad implements Chapter {
   readonly stage: Stage;
@@ -44,30 +62,25 @@ export class Chhad implements Chapter {
   private view = { w: 1, h: 1 };
   /** One full rooftop photo (round 2), or the older city + cut-out wall. */
   private full = false;
-  private ledgeFrac = 0.64;
+  private ledgeFrac = 0.655;
   private bg!: Mesh;
   private bgMat!: ShaderMaterial;
   private parapet: Mesh | null = null;
-  private parapetMat: ShaderMaterial | null = null;
   private wallFrac = 0.35;
   private ledgeY = 0;
   private lamps!: LampField;
   private bowlAspect = 1;
   private carry!: LampField;
   private carryAmp = 0;
-  private sparks!: Sparks;
-  private flashes!: Glows;
-  private flashAmp = new Float32Array(8);
-  private nextFlash = 0;
-  private rockets: Rocket[] = [];
-  private crackles: Array<{ x: number; y: number; t: number }> = [];
+  private fw!: Fireworks;
+  private words: FormPoint[] = [];
+  private face: FormPoint[] = [];
+  private vision: Mesh | null = null;
   private ambientTimer = 0;
   private pointer = { x: 0, y: 0, px: 0, py: 0, active: false };
   private counterEl: HTMLElement;
   private skipBtn: HTMLButtonElement;
   private tmp = new Vector3();
-  /** Depth the fireworks fly at: just in front of the photo, or behind the cut-out wall. */
-  private skyZ = -1;
 
   constructor(readonly section: HTMLElement) {
     const canvas = section.querySelector('canvas')!;
@@ -78,55 +91,44 @@ export class Chhad implements Chapter {
     this.counterEl = counter(this.overlay.root);
     this.skipBtn = cornerButton(this.overlay.root, config.copy.ui.skip, () => this.skip());
     this.skipBtn.hidden = true;
+    soundButton(this.overlay.root);
   }
 
   async init(): Promise<void> {
     const S = this.stage;
     const portrait = S.aspect < 1;
-    const [roof, roofLit, roofTall, roofTallLit, bowlArt] = await Promise.all([
+    const [roof, roofTall, bowlArt] = await Promise.all([
       loadTexture('chhad/rooftop.webp'),
-      loadTexture('chhad/rooftop-lit.webp'),
       loadTexture('chhad/rooftop-tall.webp'),
-      loadTexture('chhad/rooftop-tall-lit.webp'),
       artOr('common/prodip.webp', ph.prodipBowl),
     ]);
 
     let pic: Texture | null = null;
-    let picLit: Texture | null = null;
     if (portrait && roofTall) {
       pic = roofTall;
-      picLit = roofTallLit;
       this.ledgeFrac = config.chhad.ledgeTall;
     } else if (roof) {
       pic = roof;
-      picLit = roofLit;
       this.ledgeFrac = config.chhad.ledgeWide;
     }
 
     if (pic) {
-      // Round 2: wall and city in one photo, so they always match.
+      // Wall and city in one photo, so they always match.
       this.full = true;
-      this.skyZ = 0.05;
       this.bgMat = litMaterial(S, pic, { ambient: 0.62, gain: 0.9, transparent: false });
-      if (picLit) lu(this.bgMat).map2.value = picLit;
-      lu(this.bgMat).uMixPatchy.value = 1;
       this.bg = new Mesh(new PlaneGeometry(1, 1 / aspectOf(pic)), this.bgMat);
       S.scene.add(this.bg);
     } else {
-      const [cityArt, cityLitArt, parapetArt] = await Promise.all([
+      const [cityArt, parapetArt] = await Promise.all([
         artOr('chhad/city.webp', () => ph.city(false)),
-        artOr('chhad/city-lit.webp', () => ph.city(true)),
         artOr('chhad/parapet.webp', ph.parapet),
       ]);
       this.bgMat = litMaterial(S, cityArt.tex, { ambient: 0.9, gain: 0, transparent: false });
-      lu(this.bgMat).map2.value = cityLitArt.tex;
-      lu(this.bgMat).uMixPatchy.value = 1;
       this.bg = new Mesh(new PlaneGeometry(1, 1 / aspectOf(cityArt.tex)), this.bgMat);
       this.bg.position.z = -14;
       S.scene.add(this.bg);
       this.wallFrac = parapetArt.real ? 1 - 0.393 : 0.35;
-      this.parapetMat = litMaterial(S, parapetArt.tex, { ambient: 0.16, gain: 1.25 });
-      this.parapet = new Mesh(new PlaneGeometry(1, 1 / aspectOf(parapetArt.tex)), this.parapetMat);
+      this.parapet = new Mesh(new PlaneGeometry(1, 1 / aspectOf(parapetArt.tex)), litMaterial(S, parapetArt.tex, { ambient: 0.16, gain: 1.25 }));
       this.parapet.renderOrder = 6;
       S.scene.add(this.parapet);
     }
@@ -134,8 +136,7 @@ export class Chhad implements Chapter {
     // The fourteen prodips.
     this.bowlAspect = aspectOf(bowlArt.tex);
     const flame = bowlArt.real ? config.flames.prodip : config.flames.prodipPlaceholder;
-    const n = config.chhad.lamps;
-    this.lamps = new LampField(S, Array.from({ length: n }, () => new Vector3()), 1, {
+    this.lamps = new LampField(S, Array.from({ length: config.chhad.lamps }, () => new Vector3()), 1, {
       bowl: bowlArt.tex,
       bowlAspect: this.bowlAspect,
       ...flame,
@@ -148,10 +149,17 @@ export class Chhad implements Chapter {
     this.carry.setAll(true, true);
     this.carry.master = 0;
 
-    this.sparks = new Sparks(S, 5000);
-    this.sparks.gravity = -1.6;
-    this.sparks.drag = 1.1;
-    this.flashes = new Glows(8, S.lightScene);
+    const ma = await loadTexture('intro/ma.webp');
+    if (ma) {
+      const fa = ((FACE.u1 - FACE.u0) * aspectOf(ma)) / (FACE.v1 - FACE.v0);
+      this.vision = new Mesh(new PlaneGeometry(fa, 1), visionMaterial(ma));
+      this.vision.renderOrder = 4;
+      S.scene.add(this.vision);
+    }
+
+    this.fw = new Fireworks(S, 9000);
+    this.fw.z = this.full ? 0.05 : -1;
+    soundFireworks(this.fw, (x) => x / (this.view.w / 2));
 
     S.onResize(() => this.layout());
     S.onFrame((dt) => this.update(dt));
@@ -173,13 +181,11 @@ export class Chhad implements Chapter {
       const pw = Math.max(w * 1.06, h * 1.06 * a);
       const ph_ = pw / a;
       this.bg.scale.set(pw, pw, 1);
-      this.bg.position.set(0, 0, 0);
       this.ledgeY = ph_ / 2 - ph_ * this.ledgeFrac;
     } else if (this.parapet) {
       const cd = this.D + 14;
       const ch = 2 * cd * tan * 1.12;
-      const cs = Math.max(ch * S.aspect, ch * aspect(this.bg));
-      this.bg.scale.set(cs, cs, 1);
+      this.bg.scale.setScalar(Math.max(ch * S.aspect, ch * aspect(this.bg)));
       const pa = aspect(this.parapet);
       const ph_ = Math.max((w * 1.06) / pa, (h * 0.3) / this.wallFrac);
       this.parapet.scale.set(ph_ * pa, ph_ * pa, 1);
@@ -187,18 +193,39 @@ export class Chhad implements Chapter {
       this.ledgeY = -h / 2 + ph_ * this.wallFrac;
     }
 
-    // Fourteen prodips spread along the visible ledge.
+    // Fourteen prodips spread along the visible ledge; on a phone they sit almost shoulder to shoulder.
     const n = this.lamps.count;
     const span = w * (S.aspect < 1 ? 0.94 : 0.8);
     const gap = span / n;
-    // On a phone the fourteen sit almost shoulder to shoulder so each stays big enough to see and to touch.
     const size = clamp(gap * (S.aspect < 1 ? 0.9 : 0.62), 0.18, 0.5);
     for (let i = 0; i < n; i++) {
-      const x = -span / 2 + gap * (i + 0.5);
       this.lamps.setSize(i, size);
-      this.lamps.setPosition(i, this.tmp.set(x, this.ledgeY + (size / this.bowlAspect) * 0.42, 0.1));
+      this.lamps.setPosition(i, this.tmp.set(-span / 2 + gap * (i + 0.5), this.ledgeY + (size / this.bowlAspect) * 0.42, 0.1));
     }
     this.carry.setSize(0, size * 1.1);
+
+    // Fireworks: one burst unit scales with the sky above the wall.
+    this.fw.u = Math.min(h, w * 1.4) / 8.3;
+    this.fw.groundY = this.ledgeY;
+    void this.prepareForms();
+  }
+
+  /** The words and the face the finale draws in sparks, sized to this screen. */
+  private async prepareForms(): Promise<void> {
+    const { w, h } = this.view;
+    const sky = h / 2 - this.ledgeY;
+    this.words = await textPoints(config.copy.chhad.finale, Math.min(w * 0.86, sky * 2.4), AMBER, this.stage.aspect < 1 ? 5 : 6);
+    try {
+      this.face = await imagePoints(assetUrl('intro/ma.webp'), FACE, this.faceHeight(), 1500);
+      this.vision?.scale.setScalar(this.faceHeight());
+    } catch {
+      this.face = [];
+    }
+  }
+
+  /** Ma's face fills most of the sky; on a phone a little less, so the crown keeps clear of the top edge. */
+  private faceHeight(): number {
+    return (this.view.h / 2 - this.ledgeY) * (this.stage.aspect < 1 ? 0.6 : 0.74);
   }
 
   engage(): void {
@@ -277,133 +304,75 @@ export class Chhad implements Chapter {
     }
   }
 
-  /** The city lights up in patches, and the sky goes up in volleys. */
+  /** Night falls; a few shells; then the sky writes শুভ দীপাবলি and Ma's face blooms out of the sparks. */
   private finale(): void {
     this.skipBtn.hidden = true;
     this.counterEl.classList.remove('on');
     this.stage.canvas.classList.remove('carry');
     this.pointer.active = false;
+    sfx.unlock();
+    const { w } = this.view;
+    const sky = this.view.h / 2 - this.ledgeY;
+    const cy = this.ledgeY + sky * 0.55;
     const tl = gsap.timeline();
-    // The Diwali-night photo is very bright; stop a little short of it and keep the sky dark enough for the bursts.
-    tl.to(lu(this.bgMat).uMix, { value: this.full ? 0.8 : 1, duration: 5.5, ease: 'power1.inOut' }, 0.3);
-    if (this.full) tl.to(lu(this.bgMat).uAmbient.value, { r: 0.5, g: 0.5, b: 0.54, duration: 4 }, 0.3);
-    else tl.to(lu(this.bgMat).uAmbient.value, { r: 0.78, g: 0.74, b: 0.72, duration: 4 }, 0.3);
-    tl.to(this.stage, { bloomBoost: this.full ? 0.1 : 0.35, duration: 2 }, 0.4);
-    const kinds: Burst[] = ['peony', 'willow', 'ring', 'crackle'];
-    const total = config.chhad.rockets;
-    for (let i = 0; i < total; i++) {
-      // Singles first, then volleys that build.
-      const at = i < 4 ? 0.6 + i * 0.7 : 3.4 + Math.floor((i - 4) / 3) * 1.05 + ((i - 4) % 3) * 0.16;
-      tl.call(() => this.launch(kinds[i % kinds.length]!), [], at);
+    const night = this.full ? { r: 0.34, g: 0.36, b: 0.46 } : { r: 0.55, g: 0.55, b: 0.62 };
+    tl.to(lu(this.bgMat).uAmbient.value, { ...night, duration: 3, ease: 'power1.inOut' }, 0);
+    tl.to(this.stage, { bloomBoost: 0.3, duration: 2 }, 0.5);
+    // An opening volley.
+    const opening: Array<[number, number]> = [[-0.28, 0.3], [0.3, 0.7], [-0.05, 1.1], [0.18, 1.6], [-0.36, 1.9]];
+    for (const [x, at] of opening) {
+      tl.call(() => this.fw.launch(x * w, x * w * 0.9, cy + (Math.random() - 0.3) * sky * 0.3, SHELLS[Math.floor(Math.random() * SHELLS.length)]), [], at);
+    }
+    // শুভ দীপাবলি in sparks.
+    tl.call(() => this.fw.launchForm(0, 0, cy + sky * 0.05, this.words, 1.05), [], 3.2);
+    tl.call(() => {
+      buzz([30, 60, 30]);
+      this.fw.launch(-0.4 * w, -0.42 * w, cy + sky * 0.25, 'willow');
+      this.fw.launch(0.4 * w, 0.42 * w, cy + sky * 0.25, 'willow');
+    }, [], 5.2);
+    // Ma's face.
+    if (this.face.length) {
+      const fy = cy + sky * (this.stage.aspect < 1 ? 0.01 : 0.05);
+      tl.call(() => this.fw.launchForm(0, 0, fy, this.face, 1.2), [], 9.2);
+      // As the sparks gather, her face glows in behind them, holds, and goes back to the dark with the falling glitter.
+      if (this.vision) {
+        const v = this.vision;
+        v.position.set(0, fy, 0.02);
+        const op = (v.material as ShaderMaterial).uniforms.uOpacity!;
+        tl.to(op, { value: 0.95, duration: 1.8, ease: 'power2.out' }, 10.7);
+        tl.to(this.stage, { bloomBoost: 0.55, duration: 1.5 }, 10.7);
+        tl.to(op, { value: 0, duration: 1.8, ease: 'power2.in' }, 14.6);
+        tl.to(this.stage, { bloomBoost: 0.3, duration: 1.5 }, 14.6);
+      }
     }
     tl.call(() => {
-      const c = config.copy.chhad;
-      this.overlay.say('finale', { bn: c.finale, en: c.finaleSub }, 'upper', 0, 'greet');
-      buzz([30, 70, 30, 70, 30]);
-    }, [], 3);
+      for (const [x, k] of [[-0.38, 'ring'], [0.38, 'ring']] as const) this.fw.launch(x * w, x * w, cy + sky * 0.18, k);
+    }, [], 11.6);
     tl.call(() => {
       this.step = 'done';
       this.done = true;
       this.onDone?.();
-    }, [], 9);
-  }
-
-  private launch(kind: Burst): void {
-    const { w, h } = this.view;
-    const x = (Math.random() - 0.5) * w * 0.84;
-    const skyTop = h / 2 - h * 0.1;
-    const top = this.ledgeY + h * 0.18 + Math.random() * Math.max(0.5, skyTop - this.ledgeY - h * 0.22);
-    this.rockets.push({ x, y: this.ledgeY, vy: h * 0.95, top, color: COLORS[Math.floor(Math.random() * COLORS.length)]!, kind });
-  }
-
-  private burst(r: Rocket): void {
-    const z = this.skyZ;
-    const scale = this.view.h / 8.3;
-    const add = (vx: number, vy: number, life: number, size: number, color: Color, heat: number) =>
-      this.sparks.emit({ x: r.x, y: r.y, z, vx: vx * scale, vy: vy * scale, life, size: size * scale, color, heat });
-    if (r.kind === 'peony') {
-      for (let i = 0; i < 190; i++) {
-        const a = Math.random() * Math.PI * 2;
-        const sp = 1.6 + Math.random() * 1.5;
-        add(Math.cos(a) * sp, Math.sin(a) * sp, 1.4 + Math.random() * 0.8, 0.11, r.color, 3.8);
-      }
-    } else if (r.kind === 'willow') {
-      for (let i = 0; i < 170; i++) {
-        const a = Math.random() * Math.PI * 2;
-        const sp = 1.0 + Math.random() * 1.3;
-        add(Math.cos(a) * sp, Math.sin(a) * sp + 0.4, 2.8 + Math.random() * 1.4, 0.09, GOLD, 3.2);
-      }
-    } else if (r.kind === 'ring') {
-      for (let i = 0; i < 90; i++) {
-        const a = (i / 90) * Math.PI * 2;
-        add(Math.cos(a) * 2.4, Math.sin(a) * 2.4, 1.5, 0.12, r.color, 4);
-        if (i % 2 === 0) add(Math.cos(a) * 1.25, Math.sin(a) * 1.25, 1.3, 0.08, WHITE, 3.4);
-      }
-    } else {
-      for (let i = 0; i < 120; i++) {
-        const a = Math.random() * Math.PI * 2;
-        const sp = 1.3 + Math.random() * 1.6;
-        add(Math.cos(a) * sp, Math.sin(a) * sp, 1.0 + Math.random() * 0.5, 0.09, WHITE, 3.6);
-      }
-      // A second, crackling pop a moment later.
-      this.crackles.push({ x: r.x, y: r.y, t: 0.75 });
-    }
-    const k = this.nextFlash++ % this.flashAmp.length;
-    this.flashes.color(k, r.kind === 'willow' ? GOLD : r.color);
-    this.flashes.set(k, r.x, r.y, z, this.view.w * 1.1, 0);
-    this.flashAmp[k] = 0.6;
-    buzz(12);
+    }, [], this.face.length ? 16.4 : 9);
   }
 
   private update(dt: number): void {
     const S = this.stage;
-
     // The flame you carry along the ledge.
     const carrying = this.step === 'lamps' && this.pointer.active;
     this.carryAmp += ((carrying ? 1 : 0) - this.carryAmp) * damp(0.08, dt);
     this.carry.master = this.carryAmp;
     if (carrying) this.carry.setPosition(0, S.fromScreen(this.pointer.x, this.pointer.y, 0.2, this.tmp));
 
-    // Rockets: rise from behind the wall, slow, burst.
-    for (const r of this.rockets) {
-      r.y += r.vy * dt;
-      r.vy *= Math.exp(-1.1 * dt);
-      if (Math.random() < 0.85) this.sparks.emit({ x: r.x + (Math.random() - 0.5) * 0.02, y: r.y, z: this.skyZ, vx: 0, vy: -0.3, life: 0.45, size: 0.04, color: GOLD, heat: 2.2 });
-      if (r.y >= r.top || r.vy < this.view.h * 0.12) {
-        this.burst(r);
-        r.vy = -1;
-      }
-    }
-    this.rockets = this.rockets.filter((r) => r.vy >= 0);
-    for (const c of this.crackles) {
-      c.t -= dt;
-      if (c.t <= 0) {
-        for (let i = 0; i < 40; i++) {
-          const a = Math.random() * Math.PI * 2;
-          const d = Math.random() * this.view.h * 0.12;
-          this.sparks.emit({ x: c.x + Math.cos(a) * d, y: c.y + Math.sin(a) * d - this.view.h * 0.03, z: this.skyZ, vx: 0, vy: 0, life: 0.18 + Math.random() * 0.2, size: 0.09, color: WHITE, heat: 4 });
-        }
-        buzz(6);
-      }
-    }
-    this.crackles = this.crackles.filter((c) => c.t > 0);
-
-    // After the finale, a rocket now and then while the rooftop is on screen.
+    // After the finale, a shell now and then while the rooftop is on screen.
     if (this.step === 'done') {
       this.ambientTimer -= dt;
       if (this.ambientTimer <= 0) {
-        this.ambientTimer = 1.4 + Math.random() * 2.2;
-        this.launch((['peony', 'willow', 'ring', 'crackle'] as Burst[])[Math.floor(Math.random() * 4)]!);
+        this.ambientTimer = 1.6 + Math.random() * 2.4;
+        const { w } = this.view;
+        const sky = this.view.h / 2 - this.ledgeY;
+        const x = (Math.random() - 0.5) * w * 0.8;
+        this.fw.launch(x, x * 0.9, this.ledgeY + sky * (0.4 + Math.random() * 0.4));
       }
     }
-
-    for (let k = 0; k < this.flashAmp.length; k++) {
-      this.flashAmp[k] = Math.max(0, this.flashAmp[k]! - dt * 0.7);
-      this.flashes.amp(k, this.flashAmp[k]!);
-    }
-    this.flashes.commit();
-
-    // The fallback wall warms a little as the city lights up.
-    if (this.parapetMat) lu(this.parapetMat).uAmbient.value.setScalar(0.16 + lu(this.bgMat).uMix.value * 0.1);
   }
 }
