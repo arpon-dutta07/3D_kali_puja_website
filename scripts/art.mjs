@@ -92,13 +92,25 @@ function keyByDistance(data, w, h) {
   const corner = (x, y) => [data[(y * w + x) * 4], data[(y * w + x) * 4 + 1], data[(y * w + x) * 4 + 2]];
   const cs = [corner(2, 2), corner(w - 3, 2), corner(2, h - 3), corner(w - 3, h - 3)];
   const bg = [0, 1, 2].map((k) => cs.map((c) => c[k]).sort((a, b) => a - b)[1]);
+  const magenta = bg[1] < bg[0] - 60 && bg[1] < bg[2] - 60;
   for (let i = 0; i < data.length; i += 4) {
     const d = Math.hypot(data[i] - bg[0], data[i + 1] - bg[1], data[i + 2] - bg[2]);
-    const a = smoothstep(38, 95, d);
-    const maxRB = Math.max(data[i], data[i + 2]);
-    // Despill only the soft edge, where the green background shows through.
-    if (a < 1) data[i + 1] = Math.round(data[i + 1] * a + Math.min(data[i + 1], maxRB + 6) * (1 - a));
+    const a = smoothstep(45, 110, d);
+    // On the soft edge, take the background's colour back out of the pixel (works for green or magenta),
+    // so no coloured fringe is left.
+    if (a > 0 && a < 1) {
+      const k = Math.max(a, 0.35);
+      for (let c = 0; c < 3; c++) data[i + c] = Math.max(0, Math.min(255, Math.round((data[i + c] - (1 - k) * bg[c]) / k)));
+    }
     data[i + 3] = Math.round(a * data[i + 3]);
+    // A magenta screen also tints the subject's rim (brass reflects it): pull any magenta cast back to neutral.
+    if (magenta && data[i + 3] > 0) {
+      const m = Math.min(data[i], data[i + 2]) - data[i + 1];
+      if (m > 0) {
+        data[i] -= m;
+        data[i + 2] -= m;
+      }
+    }
   }
 }
 
