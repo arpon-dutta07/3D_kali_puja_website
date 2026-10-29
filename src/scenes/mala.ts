@@ -1,6 +1,6 @@
 import { gsap } from 'gsap';
 import { createNoise2D } from 'simplex-noise';
-import { Group, Mesh, PlaneGeometry, RepeatWrapping, Vector2, Vector3, type ShaderMaterial, type Texture } from 'three';
+import { BoxGeometry, Color, Group, Mesh, PlaneGeometry, RepeatWrapping, Vector2, Vector3, type ShaderMaterial, type Texture } from 'three';
 import { config } from '../config';
 import { CameraRig, fitShot, type Shot } from '../gl/camera';
 import { Glows } from '../gl/glows';
@@ -12,6 +12,7 @@ import { artOr, aspectOf, loadSeries, loadTexture } from '../lib/assets';
 import { buzz, damp, isTouch } from '../lib/device';
 import type { Chapter } from '../journey';
 import { cornerButton, Overlay } from '../ui/overlay';
+import { buildShrineDecor, updateShrineDecor, type ShrineDecor } from './shrine';
 
 interface Flower {
   mesh: Mesh;
@@ -82,6 +83,14 @@ export class Mala implements Chapter {
   private backMat!: ShaderMaterial;
   private maLamps!: LampField;
   private lampLight!: Glows;
+  private decor: ShrineDecor | null = null;
+  private halo!: Glows;
+  /** The ending's light: how far up Ma the lamplight has climbed, the halo behind her, the lamp trees. */
+  private glow = { rise: 0, halo: 0, tree: 0 };
+  private maH = 4;
+  private maW = 2;
+  /** The lowest lamp row (for framing). */
+  private lowRow = new Vector3();
   private tmp = new Vector3();
 
   constructor(readonly section: HTMLElement) {
@@ -183,29 +192,77 @@ export class Mala implements Chapter {
       this.rope.push(new Vector3(this.tip.x + 0.25 + k * this.seg * 0.7, this.tip.y - 0.1 - Math.sin(k * 0.05) * 0.4, 0.06));
     }
 
-    // Ma wearing the garland, far to the side; the camera cuts to her at the end.
-    this.maGroup.position.set(40, 0, 0);
-    const maH = 4;
-    // The same shrine wall as the opening, dim, behind her.
-    this.backMat = litMaterial(S, shrineArt.tex, { ambient: 0.02, gain: 0.45, transparent: false });
-    lu(this.backMat).uRiseColor.value.set('#7a3a1c');
-    const backW = 16;
-    const back = new Mesh(new PlaneGeometry(backW, backW / aspectOf(shrineArt.tex)), this.backMat);
-    back.position.set(0, maH * 0.62, -2.4);
-    this.maGroup.add(back);
+    // Ma wearing the garland, far to the side; the camera cuts to her at the end. She stands in the same shrine as the
+    // opening: the same decoration beside her, a stone altar and rows of prodips below.
+    const mx = 40;
+    this.maGroup.position.set(mx, 0, 0);
+    const maH = this.maH;
+    const maW = (this.maW = maH * aspectOf(maArt.tex));
     this.maMat = litMaterial(S, maArt.tex, { ambient: 0.05, gain: 0.8 });
-    const ma = new Mesh(new PlaneGeometry(maH * aspectOf(maArt.tex), maH), this.maMat);
+    const ma = new Mesh(new PlaneGeometry(maW, maH), this.maMat);
     ma.position.y = maH / 2;
+    ma.renderOrder = 10;
     this.maGroup.add(ma);
     S.scene.add(this.maGroup);
+    this.decor = await buildShrineDecor(S, this.maGroup, { w: maW, h: maH, base: 0, z: 0 });
+    const side = Math.max(this.decor.side, maW * 1.2);
+
+    // The shrine wall far behind, wide enough for the drapes.
+    const backW = Math.max(16, side * 3);
+    const backH = backW / aspectOf(shrineArt.tex);
+    this.backMat = litMaterial(S, shrineArt.tex, { ambient: 0.02, gain: 0.45, transparent: false });
+    lu(this.backMat).uRiseColor.value.set('#7a3a1c');
+    const back = new Mesh(new PlaneGeometry(backW, backH), this.backMat);
+    back.position.set(0, backH / 2 - 3, -2.6);
+    this.maGroup.add(back);
+
+    // A red and gold glow behind her.
+    this.halo = new Glows(1, S.scene, 2.6);
+    this.halo.color(0, new Color('#b8202c').lerp(new Color(config.palette.gold), 0.25));
+    this.halo.set(0, mx, maH * 0.62, -0.4, maH * 1.6, 0);
+    this.halo.commit();
+    this.halo.mesh.renderOrder = 5;
+
+    // Altar and two steps in stone, a row of prodips along each front edge.
+    const width = side * 2 * 0.9;
+    const stepMat = litMaterial(S, stoneArt.tex, { ambient: 0.012, gain: 1.05, transparent: false, repeat: [width / 1.6, 0.6] });
+    const altar = new Mesh(new BoxGeometry(width, 0.22, 2.4), stepMat);
+    altar.position.set(0, -0.11, 0.2);
+    this.maGroup.add(altar);
+    const rise = 0.3;
+    const tread = 0.75;
+    const rows: Array<{ y: number; z: number; w: number }> = [{ y: 0, z: 1.25, w: width * 0.86 }];
+    for (let k = 0; k < 2; k++) {
+      const top = -0.22 - k * rise;
+      const h = 3 + top;
+      const step = new Mesh(new BoxGeometry(width * (1.04 + k * 0.04), h, tread), stepMat);
+      const z = 1.4 + tread * (k + 0.5);
+      step.position.set(0, top - h / 2, z);
+      this.maGroup.add(step);
+      rows.push({ y: top, z: z + tread * 0.5 - 0.22, w: width * (0.9 + k * 0.04) });
+    }
     const bowlAspect = aspectOf(bowlArt.tex);
-    const lampSize = 0.55;
-    this.maLamps = new LampField(
-      S,
-      [new Vector3(40 - 1.5, lampSize / bowlAspect * 0.4, 0.6), new Vector3(40 + 1.5, lampSize / bowlAspect * 0.4, 0.6)],
-      lampSize,
-      { bowl: bowlArt.tex, bowlAspect, ...(bowlArt.real ? config.flames.prodip : config.flames.prodipPlaceholder), light: 8, lightAmp: 0.55 },
-    );
+    const lampSize = 0.46;
+    const lift = (lampSize / bowlAspect) * 0.42;
+    const pts: Vector3[] = [];
+    for (const [k, r] of rows.entries()) {
+      const n = Math.max(5, Math.floor(r.w / 0.72));
+      for (let j = 0; j < n; j++) {
+        const x = (j / (n - 1) - 0.5) * r.w + (k % 2 ? 0.18 : 0);
+        pts.push(new Vector3(mx + x, r.y + lift, r.z));
+      }
+    }
+    this.lowRow.set(mx, rows[rows.length - 1]!.y, rows[rows.length - 1]!.z);
+    this.maLamps = new LampField(S, pts, lampSize, {
+      bowl: bowlArt.tex,
+      bowlAspect,
+      ...(bowlArt.real ? config.flames.prodip : config.flames.prodipPlaceholder),
+      light: 5.5,
+      lightAmp: 0.32,
+      halo: 1.5,
+      haloAmp: 0.16,
+      ambient: 0.025,
+    });
     lu(this.maMat).uRise.value = -0.2;
 
     S.onResize(() => this.computeShots());
@@ -232,14 +289,21 @@ export class Mala implements Chapter {
       const t = this.shots.thala;
       if (t.pos.distanceTo(t.target) > dMax) t.pos.copy(t.target).add(new Vector3(0, 0, dMax));
     }
+    // The ending, framed like the opening's blessing: Ma whole, the decoration filling the sides, the lamps below.
     const mx = 40;
+    const side = this.decor?.side ?? this.maW;
+    const sx = S.aspect >= 1 ? Math.min(side, this.maH * 1.15 * S.aspect) : this.maW * 0.62;
     this.shots.ma = fitShot(
       S,
-      [new Vector3(mx - 1.6, 0, 0), new Vector3(mx + 1.6, 0, 0), new Vector3(mx, 4.1, 0), new Vector3(mx, -0.1, 0)],
-      // Centred a little low so Ma sits higher and the line below her has room.
-      new Vector3(mx, 1.65, 0),
-      new Vector3(0, 0.05, 1),
-      { x: 0.86, y: 0.82 },
+      [
+        new Vector3(mx - sx, this.maH * 0.5, 0),
+        new Vector3(mx + sx, this.maH * 0.5, 0),
+        new Vector3(mx, this.maH + 0.25, 0),
+        new Vector3(mx, this.lowRow.y, this.lowRow.z),
+      ],
+      new Vector3(mx, this.maH * 0.45, 0.5),
+      new Vector3(0, 0.18, 1),
+      { x: 0.98, y: 0.9 },
     );
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     this.canvas2d.width = Math.round(S.width * dpr);
@@ -339,6 +403,9 @@ export class Mala implements Chapter {
     tl.to(lu(this.maMat).uRiseGain, { value: 0.95, duration: 1.2 }, '<');
     tl.to(lu(this.backMat).uRise, { value: 0.7, duration: 3.2, ease: 'power1.inOut' }, '<');
     tl.to(lu(this.backMat).uRiseGain, { value: 0.35, duration: 1.2 }, '<');
+    tl.to(this.glow, { rise: 1.2, duration: 3.2, ease: 'power1.inOut' }, '<');
+    tl.to(this.glow, { tree: 1, duration: 1.6, ease: 'power2.out' }, '<0.8');
+    tl.to(this.glow, { halo: 0.5, duration: 2.4, ease: 'power2.out' }, '<0.3');
     tl.call(() => this.overlay.say('done', config.copy.mala.done, 'bottom'), [], '-=1.4');
     tl.call(() => {
       this.done = true;
@@ -415,6 +482,11 @@ export class Mala implements Chapter {
         f.mesh.rotation.z = f.angle * (1 - t) + ang * t;
         f.mesh.scale.setScalar(1 - 0.18 * t);
       }
+    }
+    if (this.finished && this.decor) {
+      updateShrineDecor(this.decor, this.glow.rise, this.glow.halo, this.glow.tree);
+      this.halo.amp(0, this.glow.halo);
+      this.halo.commit();
     }
     this.lampLight.amp(0, 0.9 * (1 + 0.08 * Math.sin(time * 9) + 0.05 * Math.sin(time * 5.3)));
     this.lampLight.commit();

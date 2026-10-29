@@ -113,6 +113,7 @@ export const config = {
       inviteTouch: 'আঙুল ছুঁইয়ে টেনে নিয়ে যাও',
       midnight: { bn: 'রাত বারোটা।', en: 'Midnight.' },
       greeting: 'শুভ কালীপুজো',
+      jai: 'জয় মা কালী',
       greetingSub: 'শুভ দীপাবলি',
     },
     mala: {

@@ -1027,6 +1027,39 @@ canvas.carry {
   filter: blur(0);
 }
 
+/* জয় মা কালী: one small line at the very top of the blessing. */
+.line.jai.pos-top {
+  top: max(3.4vh, calc(env(safe-area-inset-top) + 14px));
+}
+
+.line.jai .bn {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 26px 4px;
+  border-radius: 999px;
+  /* A soft dark halo, so it reads over the chandmala's white shola. */
+  background: radial-gradient(closest-side, rgba(12, 4, 2, 0.78), rgba(12, 4, 2, 0.45) 60%, transparent);
+  font-size: clamp(17px, 1.8vw, 21px);
+  word-spacing: 0.4em;
+  color: #f0c46a;
+  text-shadow:
+    0 0 16px rgba(255, 150, 60, 0.45),
+    0 2px 10px rgba(0, 0, 0, 0.9);
+}
+
+.line.jai .bn::before,
+.line.jai .bn::after {
+  content: '';
+  width: 46px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(232, 181, 74, 0.85));
+}
+
+.line.jai .bn::after {
+  background: linear-gradient(270deg, transparent, rgba(232, 181, 74, 0.85));
+}
+
 /* বাজি: six pieces now. */
 .baji-bar button.active {
   background: rgba(255, 170, 70, 0.22);

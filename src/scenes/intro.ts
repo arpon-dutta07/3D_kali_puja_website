@@ -22,10 +22,11 @@ import { litMaterial, lu } from '../gl/lit';
 import * as ph from '../gl/placeholders';
 import { Sparks } from '../gl/sparks';
 import { Stage } from '../gl/stage';
-import { artOr, aspectOf, loadSeries, loadTexture } from '../lib/assets';
+import { artOr, aspectOf, loadSeries } from '../lib/assets';
 import { bn, buzz, damp, isTouch } from '../lib/device';
 import { parallax } from '../lib/parallax';
 import { cornerButton, counter, Overlay } from '../ui/overlay';
+import { buildShrineDecor, updateShrineDecor, type ShrineDecor } from './shrine';
 
 type State = 'loading' | 'gate' | 'dark' | 'lighting' | 'finishing' | 'midnight' | 'blessing';
 
@@ -42,13 +43,6 @@ interface Layout {
   maBase: number;
   /** Half-width of everything that stands beside Ma (for framing the blessing). */
   sideHalf: number;
-}
-
-interface Decor {
-  mesh: Mesh;
-  mat: ShaderMaterial;
-  /** Lamp trees light up at midnight; the rest is lit by the lamps and the halo. */
-  glow: boolean;
 }
 
 /** Hand-drawn flame for the gate button (no emoji). */
@@ -73,8 +67,7 @@ export class Intro {
   private backMat!: ShaderMaterial;
   private stepMat!: ShaderMaterial;
   private halo!: Glows;
-  private treeLights!: Glows;
-  private decor: Decor[] = [];
+  private decor: ShrineDecor | null = null;
   private embers!: Sparks;
   private petalTex: Texture[] = [];
   private petals: Array<{ s: Sprite; vy: number; ph: number; spin: number; x0: number }> = [];
@@ -245,75 +238,11 @@ export class Intro {
     this.gate.classList.add('on');
   }
 
-  /**
-   * Kali Puja decoration beside Ma (art/ANTIGRAVITY-ROUND-2.md): lamp trees, ghots, dhaks, drapes, jaba strands and a
-   * shola chandmala. Each piece appears only once its picture exists; nothing is drawn in its place.
-   */
+  /** The decoration beside Ma (src/scenes/shrine.ts). */
   private async buildDecor(): Promise<void> {
     const L = this.lay;
-    const S = this.stage;
-    const [tree, drape, strands, ghot, dhak, chand] = await Promise.all(
-      ['decor-lamp-tree', 'decor-drape', 'decor-jaba-strands', 'decor-ghot', 'decor-dhak', 'decor-chandmala'].map((n) =>
-        loadTexture(`intro/${n}.webp`),
-      ),
-    );
-    const add = (tex: Texture, h: number, x: number, bottom: number, z: number, mirror: boolean, glow = false, order = 9) => {
-      const w = h * aspectOf(tex);
-      const mat = litMaterial(S, tex, { ambient: 0.02, gain: 0.8, emissive: 0 });
-      lu(mat).uRiseColor.value.set('#ff9a50');
-      const mesh = new Mesh(new PlaneGeometry(w, h), mat);
-      mesh.position.set(x, bottom + h / 2, z);
-      if (mirror) mesh.scale.x = -1;
-      mesh.renderOrder = order;
-      S.scene.add(mesh);
-      this.decor.push({ mesh, mat, glow });
-      return w;
-    };
-    const half = L.maW / 2;
-    let side = half;
-    if (tree) {
-      const h = L.maH * 0.82;
-      const w = h * aspectOf(tree);
-      for (const s of [-1, 1]) add(tree, h, s * (half + w / 2 + 0.2), L.maBase, L.maZ + 0.35, s > 0, true);
-      side = half + w + 0.2;
-      // Their flames light Ma and the wall at midnight.
-      this.treeLights = new Glows(2, S.lightScene);
-      this.treeLights.colorAll(config.palette.amber);
-      for (const [i, s] of [-1, 1].entries()) this.treeLights.set(i, s * (half + w / 2 + 0.2), L.maBase + h * 0.62, L.maZ + 0.4, h * 2.4, 0);
-      this.treeLights.commit();
-    }
-    if (ghot) {
-      const h = L.maH * 0.26;
-      const w = h * aspectOf(ghot);
-      for (const s of [-1, 1]) add(ghot, h, s * (side + w / 2 + 0.15), L.maBase, L.maZ + 0.7, s > 0);
-      side += w + 0.15;
-    }
-    if (dhak) {
-      const h = L.maH * 0.36;
-      const w = h * aspectOf(dhak);
-      for (const s of [-1, 1]) add(dhak, h, s * (side + w / 2 + 0.25), L.maBase, L.maZ + 0.9, s > 0);
-      side += w + 0.25;
-    }
-    if (strands) {
-      const h = L.maH * 1.15;
-      const w = h * aspectOf(strands);
-      for (const s of [-1, 1]) add(strands, h, s * (side + w / 2 - 0.1), L.maBase + L.maH * 0.42, L.maZ - 0.3, s > 0);
-      side += w * 0.6;
-    }
-    if (drape) {
-      const h = L.maH * 2.1;
-      const w = h * aspectOf(drape);
-      // The curtain is drawn hugging the left of its picture; the right one is the mirror.
-      for (const s of [-1, 1]) add(drape, h, s * (side + w * 0.25), L.maBase - 0.3, L.maZ - 0.8, s > 0, false, 4);
-      side += w * 0.55;
-    }
-    if (chand) {
-      // A swag above her crown, behind her so it never covers her face.
-      const w = L.maW * 2.3;
-      const h = w / aspectOf(chand);
-      add(chand, h, 0, L.maBase + L.maH * 0.93, L.maZ - 0.25, false, false, 8);
-    }
-    L.sideHalf = side;
+    this.decor = await buildShrineDecor(this.stage, this.stage.scene, { w: L.maW, h: L.maH, base: L.maBase, z: L.maZ });
+    L.sideHalf = this.decor.side;
   }
 
   private computeShots(): void {
@@ -444,6 +373,8 @@ export class Intro {
     tl.call(() => {
       this.state = 'blessing';
       this.rig.to(this.shots.blessing, 3.5, 'power2.inOut');
+      // One small line at the very top, clear of her.
+      gsap.delayedCall(2.2, () => this.overlay.say('jai', config.copy.intro.jai, 'top', 0, 'jai'));
     }, [], config.intro.midnightSeconds);
   }
 
@@ -597,19 +528,7 @@ export class Intro {
     b.uRiseGain.value = 0.35 * Math.min(1, this.rise * 3);
     this.halo.amp(0, this.haloAmp);
     this.halo.commit();
-    const flick = 1 + 0.06 * Math.sin(performance.now() / 90) + 0.04 * Math.sin(performance.now() / 47);
-    for (const d of this.decor) {
-      const u = lu(d.mat);
-      u.uRise.value = this.rise;
-      u.uRiseGain.value = 0.7 * Math.min(1, this.rise * 3);
-      u.uFlood.value.setRGB(0.5, 0.22, 0.1).multiplyScalar(this.haloAmp * 0.5);
-      if (d.glow) u.uEmissive.value = 0.15 + this.treeAmp * 0.95 * flick;
-    }
-    if (this.treeLights) {
-      this.treeLights.amp(0, this.treeAmp * 0.55 * flick);
-      this.treeLights.amp(1, this.treeAmp * 0.55 * flick);
-      this.treeLights.commit();
-    }
+    if (this.decor) updateShrineDecor(this.decor, this.rise, this.haloAmp, this.treeAmp);
 
     this.emitEmbers(dt);
     this.updatePetals(dt);
