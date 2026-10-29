@@ -137,6 +137,15 @@ export const config = {
       finale: 'শুভ দীপাবলি',
       finaleSub: 'শুভ কালীপুজো',
     },
+    baji: {
+      title: 'বাজির রাত',
+      line: 'তুবড়ি, রকেট, চরকি সব ছাদে রাখা আছে। আকাশটা এবার তোমার।',
+      hint: { bn: 'আকাশের যেখানে খুশি ছোঁও', en: 'Tap anywhere in the sky' },
+      rocket: 'রকেট',
+      tubri: 'তুবড়ি',
+      chorki: 'চরকি',
+      skyshot: 'স্কাইশট',
+    },
     ui: {
       skip: 'Skip',
       share: 'Share',

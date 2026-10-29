@@ -5,6 +5,7 @@ import { Intro } from './scenes/intro';
 import { Mala } from './scenes/mala';
 import { Bhoot } from './scenes/bhoot';
 import { Chhad } from './scenes/chhad';
+import { Baji } from './scenes/baji';
 import { share } from './ui/share';
 import { isDebug } from './lib/device';
 import { advance } from './gl/stage';
@@ -43,6 +44,7 @@ async function boot(): Promise<void> {
     { id: 'mala', title: C.mala.title, line: C.mala.line, make: (el) => new Mala(el) },
     { id: 'bhoot', title: C.bhoot.title, line: C.bhoot.line, make: (el) => new Bhoot(el) },
     { id: 'chhad', title: C.chhad.title, line: C.chhad.line, make: (el) => new Chhad(el) },
+    { id: 'baji', title: C.baji.title, line: C.baji.line, make: (el) => new Baji(el) },
   ];
   const numbers = ['এক', 'দুই', 'তিন', 'চার'];
   const built: Record<string, Chapter> = {};

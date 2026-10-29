@@ -803,3 +803,132 @@ canvas.carry {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+/* ---------- sound toggle (fireworks scenes) ---------- */
+
+.sound-btn {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  left: 16px;
+  z-index: 4;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  appearance: none;
+  border: 1px solid rgba(232, 181, 74, 0.4);
+  border-radius: 50%;
+  background: rgba(10, 6, 4, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: rgba(255, 228, 180, 0.88);
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    border-color 0.3s ease,
+    background 0.3s ease;
+}
+
+.sound-btn:hover {
+  border-color: var(--amber);
+  background: rgba(50, 22, 8, 0.6);
+}
+
+.sound-btn:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+}
+
+.sound-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- বাজি: the four pieces ---------- */
+
+.baji-bar {
+  position: absolute;
+  left: 50%;
+  bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px));
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid rgba(232, 181, 74, 0.32);
+  border-radius: 24px;
+  background: rgba(10, 6, 4, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  opacity: 0;
+  translate: -50% 16px;
+  transition:
+    opacity 0.9s ease,
+    translate 1s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.baji-bar.on {
+  opacity: 1;
+  translate: -50% 0;
+  pointer-events: auto;
+}
+
+.baji-bar button {
+  appearance: none;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--bn);
+  font-size: 15px;
+  min-width: 78px;
+  padding: 9px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition:
+    background 0.25s ease,
+    scale 0.15s ease;
+}
+
+.baji-bar button:hover {
+  background: rgba(255, 170, 70, 0.12);
+}
+
+.baji-bar button:active {
+  scale: 0.93;
+  background: rgba(255, 170, 70, 0.2);
+}
+
+.baji-bar button:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
+}
+
+.baji-bar svg {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: #f0c46a;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 6px rgba(255, 160, 60, 0.35));
+}
+
+@media (max-width: 420px) {
+  .baji-bar button {
+    min-width: 70px;
+    padding: 8px 8px 7px;
+    font-size: 14px;
+  }
+}
