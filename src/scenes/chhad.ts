@@ -10,8 +10,10 @@ import * as ph from '../gl/placeholders';
 import { Stage } from '../gl/stage';
 import { artOr, aspectOf, assetUrl, loadTexture } from '../lib/assets';
 import { bn, buzz, clamp, damp, isTouch } from '../lib/device';
+import { journal } from '../lib/journal';
 import type { Chapter } from '../journey';
 import { cornerButton, counter, Overlay } from '../ui/overlay';
+import { grab, keepMoment, moment, StoryShare, storyCard, storyCta } from '../ui/story';
 
 /** The finale's words burn amber, a shade deeper than the shells' gold so bloom does not wash them white. */
 const AMBER = new Color('#ff9d3a');
@@ -306,6 +308,7 @@ export class Chhad implements Chapter {
 
   /** Night falls; a few shells; then the sky writes শুভ দীপাবলি and Ma's face blooms out of the sparks. */
   private finale(): void {
+    journal.roof(this.lamps.count);
     this.skipBtn.hidden = true;
     this.counterEl.classList.remove('on');
     this.stage.canvas.classList.remove('carry');
@@ -348,11 +351,23 @@ export class Chhad implements Chapter {
     tl.call(() => {
       for (const [x, k] of [[-0.38, 'ring'], [0.38, 'ring']] as const) this.fw.launch(x * w, x * w, cy + sky * 0.18, k);
     }, [], 11.6);
+    // Ma's face at its brightest is kept for the story card.
+    if (this.face.length) tl.call(() => keepMoment('face', this.stage), [], 12.8);
     tl.call(() => {
       this.step = 'done';
       this.done = true;
       this.onDone?.();
+      this.offerStory();
     }, [], this.face.length ? 16.4 : 9);
+  }
+
+  /** After the finale: put this night in your story (and tag the page). */
+  private offerStory(): void {
+    const share = new StoryShare(() => storyCard(moment('face') ?? grab(this.stage)));
+    share.prepare();
+    const cta = storyCta(this.overlay.root, share);
+    requestAnimationFrame(() => requestAnimationFrame(() => cta.classList.add('on')));
+    setTimeout(() => cta.classList.add('on'), 80);
   }
 
   private update(dt: number): void {

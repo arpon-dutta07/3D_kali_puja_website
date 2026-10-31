@@ -99,6 +99,9 @@ export const config = {
     rockets: 22,
   },
 
+  /** The Instagram page the site leads back to. */
+  instagram: 'lyadkhor.coder',
+
   /**
    * Each section's song: the YouTube video id (the part after watch?v= or youtu.be/). It plays in a hidden YouTube
    * player, sound only, on a loop while its section is on screen. The ghost house has its own sounds instead.
@@ -171,9 +174,24 @@ export const config = {
     },
     ui: {
       skip: 'Skip',
-      share: 'Share',
       again: 'Watch again',
-      shareText: 'অমাবস্যার রাতে ১০৮টা প্রদীপ জ্বালালাম। তুমিও জ্বালাও:',
+    },
+    /** The story card: a picture of their night for their Instagram story, tagged to the page. */
+    story: {
+      button: 'Story-তে দাও',
+      buttonEn: 'Share to your story',
+      tag: 'Story-তে @lyadkhor.coder ট্যাগ করো, রিপোস্ট করবো।',
+      copied: '@lyadkhor.coder কপি করা আছে, Story-তে পেস্ট করে দিও।',
+      sheetTitle: 'তোমার কালীপুজো',
+      saveTouch: 'ছবিটায় আঙুল চেপে রেখে সেভ করো, তারপর Story-তে দাও।',
+      save: 'Save',
+      close: 'Close',
+    },
+    /** The reason to follow, on the last screen. */
+    follow: {
+      next: 'পরের ওয়েবসাইট আসছে ভাইফোঁটায়।',
+      nudge: 'Follow করে রাখো, এলেই পাবে।',
+      button: 'Follow @lyadkhor.coder',
     },
   },
 };

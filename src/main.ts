@@ -7,7 +7,7 @@ import { Bhoot } from './scenes/bhoot';
 import { Chhad } from './scenes/chhad';
 import { Baji } from './scenes/baji';
 import { EndScene } from './scenes/end';
-import { share } from './ui/share';
+import { followBlock, grab, moment, StoryShare, storyCard, storyCta } from './ui/story';
 import { isDebug } from './lib/device';
 import { advance } from './gl/stage';
 import { music } from './audio/music';
@@ -61,30 +61,36 @@ async function boot(): Promise<void> {
     void ch.init();
   });
 
-  // The last screen: fireworks over the city, the greeting low like a poster's title, Share and Watch again.
+  // The last screen: fireworks over the city, the greeting low like a poster's title, your story, and what comes next.
   const end = sceneSection('end');
   end.classList.add('end');
   end.insertAdjacentHTML(
     'beforeend',
-    `<div class="end-scrim"></div><div class="end-card"><p class="kicker">${C.end.kicker}</p><h2>${C.end.title}</h2><div class="rule"><span></span>${END_FLAME}<span></span></div><p class="sub">${C.end.sub}</p><div class="buttons"></div><p class="credit">বানিয়েছে <a href="https://www.instagram.com/lyadkhor.coder/" target="_blank" rel="noopener">@lyadkhor.coder</a></p></div>`,
+    `<div class="end-scrim"></div><div class="end-card"><p class="kicker">${C.end.kicker}</p><h2>${C.end.title}</h2><div class="rule"><span></span>${END_FLAME}<span></span></div><p class="sub">${C.end.sub}</p></div>`,
   );
-  const row = end.querySelector<HTMLElement>('.buttons')!;
-  const btn = (label: string, primary: boolean, onClick: () => void) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = `btn${primary ? ' primary' : ''}`;
-    b.textContent = label;
-    b.addEventListener('click', onClick);
-    row.appendChild(b);
-  };
-  btn(C.ui.share, true, () => void share(intro.stage));
-  btn(C.ui.again, false, () => {
+  const card = end.querySelector<HTMLElement>('.end-card')!;
+  const again = document.createElement('button');
+  again.type = 'button';
+  again.className = 'btn';
+  again.textContent = C.ui.again;
+  again.addEventListener('click', () => {
     journey.toTop();
     setTimeout(() => location.reload(), 1200);
   });
   page.appendChild(end);
   const endScene = new EndScene(end);
   void endScene.init();
+  // Put the night in your story (Ma's face from the rooftop if you saw it, else the sky here), then a reason to follow.
+  const story = new StoryShare(() => storyCard(moment('face') ?? grab(endScene.stage)));
+  storyCta(card, story, [again]);
+  followBlock(card);
+  new IntersectionObserver(
+    (entries) => {
+      // Made fresh each visit (what you did keeps growing), once a few bursts are up.
+      if (entries.some((e) => e.isIntersecting)) setTimeout(() => story.prepare(), 2500);
+    },
+    { threshold: 0.55 },
+  ).observe(end);
 
   // Each section's music follows whichever section is on screen.
   const watch = new IntersectionObserver(
