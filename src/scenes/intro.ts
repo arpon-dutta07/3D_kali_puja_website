@@ -25,6 +25,7 @@ import { Sparks } from '../gl/sparks';
 import { Stage } from '../gl/stage';
 import { artOr, aspectOf, loadSeries } from '../lib/assets';
 import { bn, buzz, damp, isTouch } from '../lib/device';
+import { journal } from '../lib/journal';
 import { parallax } from '../lib/parallax';
 import { cornerButton, counter, Overlay } from '../ui/overlay';
 import { buildShrineDecor, updateShrineDecor, type ShrineDecor } from './shrine';
@@ -359,6 +360,7 @@ export class Intro {
   private midnight(): void {
     if (this.state === 'midnight' || this.state === 'blessing') return;
     this.state = 'midnight';
+    journal.lamps(this.lamps.litCount);
     this.skipBtn.hidden = true;
     this.counterEl.classList.remove('on');
     this.stage.canvas.classList.remove('carry');

@@ -20,6 +20,7 @@ import * as ph from '../gl/placeholders';
 import { Stage } from '../gl/stage';
 import { artOr, aspectOf, loadTexture } from '../lib/assets';
 import { buzz, isTouch } from '../lib/device';
+import { journal } from '../lib/journal';
 import type { Chapter } from '../journey';
 import { Overlay } from '../ui/overlay';
 
@@ -165,6 +166,7 @@ export class Baji implements Chapter {
         e.stopPropagation();
         sfx.unlock();
         buzz(10);
+        journal.baji();
         fn();
       });
       if (icon === 'sparkler') this.sparkBtn = b;
@@ -296,6 +298,7 @@ export class Baji implements Chapter {
       }
       // The shell goes up from the roof right under the tap.
       this.fw.launch(p.x + (Math.random() - 0.5) * this.view.w * 0.05, p.x, p.y, this.nextShell(), [randomColor(), randomColor()]);
+      journal.baji();
     });
     el.addEventListener('pointermove', (e) => {
       if (!this.sparkler?.alive) return;

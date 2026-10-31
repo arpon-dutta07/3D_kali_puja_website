@@ -9,6 +9,7 @@ import * as ph from '../gl/placeholders';
 import { Stage } from '../gl/stage';
 import { artOr, aspectOf, loadSeries, loadTexture } from '../lib/assets';
 import { bn, buzz, clamp, damp, isDebug, isTouch } from '../lib/device';
+import { journal } from '../lib/journal';
 import type { Chapter } from '../journey';
 import { cornerButton, counter, Overlay } from '../ui/overlay';
 
@@ -316,6 +317,7 @@ export class Bhoot implements Chapter {
     buzz(14);
     if (n >= this.lamps.count && !this.finished) {
       this.finished = true;
+      journal.ghosts(this.ghosts.length);
       this.skipBtn.hidden = true;
       this.counterEl.classList.remove('on');
       // The last one gets its moment in the light before the power comes back.

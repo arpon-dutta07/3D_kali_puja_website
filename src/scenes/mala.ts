@@ -11,6 +11,7 @@ import * as ph from '../gl/placeholders';
 import { Stage } from '../gl/stage';
 import { artOr, aspectOf, loadSeries, loadTexture } from '../lib/assets';
 import { buzz, damp, isTouch } from '../lib/device';
+import { journal } from '../lib/journal';
 import type { Chapter } from '../journey';
 import { cornerButton, Overlay } from '../ui/overlay';
 import { buildShrineDecor, updateShrineDecor, type ShrineDecor } from './shrine';
@@ -388,6 +389,7 @@ export class Mala implements Chapter {
   private complete(): void {
     if (this.finished) return;
     this.finished = true;
+    journal.mala();
     this.skipBtn.hidden = true;
     this.stage.canvas.classList.remove('carry');
     buzz([20, 60, 20]);
