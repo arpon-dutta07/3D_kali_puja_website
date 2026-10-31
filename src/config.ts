@@ -100,7 +100,7 @@ export const config = {
   },
 
   /** The Instagram page the site leads back to. */
-  instagram: 'lyadkhor.coder',
+  instagram: 'lyadkhor_coder',
 
   /**
    * Each section's song: the YouTube video id (the part after watch?v= or youtu.be/). It plays in a hidden YouTube
@@ -180,8 +180,8 @@ export const config = {
     story: {
       button: 'Story-তে দাও',
       buttonEn: 'Share to your story',
-      tag: 'Story-তে @lyadkhor.coder ট্যাগ করো, রিপোস্ট করবো।',
-      copied: '@lyadkhor.coder কপি করা আছে, Story-তে পেস্ট করে দিও।',
+      tag: 'Story-তে @lyadkhor_coder ট্যাগ করো, রিপোস্ট করবো।',
+      copied: '@lyadkhor_coder কপি করা আছে, Story-তে পেস্ট করে দিও।',
       sheetTitle: 'তোমার কালীপুজো',
       saveTouch: 'ছবিটায় আঙুল চেপে রেখে সেভ করো, তারপর Story-তে দাও।',
       save: 'Save',
@@ -191,7 +191,7 @@ export const config = {
     follow: {
       next: 'পরের ওয়েবসাইট আসছে ভাইফোঁটায়।',
       nudge: 'Follow করে রাখো, এলেই পাবে।',
-      button: 'Follow @lyadkhor.coder',
+      button: 'Follow @lyadkhor_coder',
     },
   },
 };
